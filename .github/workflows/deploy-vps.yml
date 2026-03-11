@@ -26,6 +26,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_APP_DIR }}"
+            git config --global --add safe.directory "${{ secrets.VPS_APP_DIR }}"
             git fetch --all --prune
             git reset --hard origin/main
             composer install --no-interaction --prefer-dist
