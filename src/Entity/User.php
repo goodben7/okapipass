@@ -40,18 +40,18 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\UniqueConstraint(name: 'UNIQ_USER_EMAIL', fields: ['email'])]
 #[ORM\UniqueConstraint(name: 'UNIQ_USER_PHONE', fields: ['phone'])]
 #[ORM\UniqueConstraint(name: 'UNIQ_HOLDER', fields: ['holderId'])]
-#[Get(
-    uriTemplate: 'users/about',
-    security: 'is_granted("ROLE_USER")',
-    normalizationContext: ['groups' => 'user:get'],
-    provider: UserInfoProvider::class,  
-)]
 #[ApiResource(
     normalizationContext: ['groups' => 'user:get'], 
     operations:[
         new Get(
             security: 'is_granted("ROLE_USER_DETAILS")',
             provider: ItemProvider::class
+        ),
+        new Get(
+            uriTemplate: 'users/about',
+            security: 'is_granted("ROLE_USER")',
+            normalizationContext: ['groups' => 'user:get'],
+            provider: UserInfoProvider::class,
         ),
         new GetCollection(
             security: 'is_granted("ROLE_USER_LIST")',

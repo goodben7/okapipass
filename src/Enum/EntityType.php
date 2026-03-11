@@ -10,6 +10,8 @@ class EntityType
     public const string ACTIVITY = 'ACTIVITY'; // App\Entity\Activity
     public const string CHECKPOINT = 'CHECKPOINT';
     public const string GOPASS = 'GOPASS';
+    public const string TICKET = 'TICKET';
+    public const string PAYMENT = 'PAYMENT';
 
     public static function getAll(): array
     {
@@ -26,6 +28,8 @@ class EntityType
                 self::ACTIVITY,
                 self::CHECKPOINT,
                 self::GOPASS,
+                self::TICKET,
+                self::PAYMENT,
             ],  
         ];
     }

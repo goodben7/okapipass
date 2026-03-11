@@ -33,4 +33,13 @@ return static function (): iterable {
     yield Permission::new('ROLE_GOPASS_UPDATE', "Modifier un GoPass");
     yield Permission::new('ROLE_GOPASS_DETAILS', "Consulter les détails d'un GoPass");
 
+    yield Permission::new('ROLE_TICKET_CREATE', "Créer un ticket");
+    yield Permission::new('ROLE_TICKET_LIST', "Consulter la liste des tickets");
+    yield Permission::new('ROLE_TICKET_DETAILS', "Consulter les détails d'un ticket");
+
+    yield Permission::new('ROLE_PAYMENT_CREATE', "Créer un paiement");
+    yield Permission::new('ROLE_PAYMENT_LIST', "Consulter la liste des paiements");
+    yield Permission::new('ROLE_PAYMENT_UPDATE', "Modifier un paiement");
+    yield Permission::new('ROLE_PAYMENT_DETAILS', "Consulter les détails d'un paiement");
+
 };
