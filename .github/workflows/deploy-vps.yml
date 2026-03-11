@@ -26,6 +26,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_APP_DIR }}"
+            sudo chown -R "$(whoami)":"$(whoami)" "${{ secrets.VPS_APP_DIR }}" || true
             git config --global --add safe.directory "${{ secrets.VPS_APP_DIR }}"
             git fetch --all --prune
             git reset --hard origin/main

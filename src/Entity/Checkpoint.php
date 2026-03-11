@@ -25,11 +25,11 @@ use Symfony\Component\Serializer\Attribute\Groups;
     normalizationContext: ['groups' => 'checkpoint:get'],
     operations: [
         new Get(
-            security: 'is_granted("ROLE_CHECKPOINT_DETAILS")',
+            //security: 'is_granted("ROLE_CHECKPOINT_DETAILS")',
             provider: ItemProvider::class
         ),
         new GetCollection(
-            security: 'is_granted("ROLE_CHECKPOINT_LIST")',
+            //security: 'is_granted("ROLE_CHECKPOINT_LIST")',
             provider: CollectionProvider::class
         ),
         new Post(
