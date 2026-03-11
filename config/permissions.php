@@ -23,4 +23,14 @@ return static function (): iterable {
     yield Permission::new('ROLE_ACTIVITY_LIST', "Consulter la liste des activités"); 
     yield Permission::new('ROLE_ACTIVITY_VIEW', "Consulter les détails d'une activité"); 
 
+    yield Permission::new('ROLE_CHECKPOINT_CREATE', "Créer un checkpoint");
+    yield Permission::new('ROLE_CHECKPOINT_LIST', "Consulter la liste des checkpoints");
+    yield Permission::new('ROLE_CHECKPOINT_UPDATE', "Modifier un checkpoint");
+    yield Permission::new('ROLE_CHECKPOINT_DETAILS', "Consulter les détails d'un checkpoint");
+
+    yield Permission::new('ROLE_GOPASS_CREATE', "Créer un GoPass");
+    yield Permission::new('ROLE_GOPASS_LIST', "Consulter la liste des GoPass");
+    yield Permission::new('ROLE_GOPASS_UPDATE', "Modifier un GoPass");
+    yield Permission::new('ROLE_GOPASS_DETAILS', "Consulter les détails d'un GoPass");
+
 };
