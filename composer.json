@@ -1,4 +1,6 @@
 {
+    "name": "fenx/okapipass",
+    "description": "OkapiPass API",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",

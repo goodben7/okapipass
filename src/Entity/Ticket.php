@@ -29,11 +29,11 @@ use Symfony\Component\Validator\Constraints as Assert;
     normalizationContext: ['groups' => 'ticket:get'],
     operations: [
         new Get(
-            security: 'is_granted("ROLE_TICKET_DETAILS")',
+            //security: 'is_granted("ROLE_TICKET_DETAILS")',
             provider: ItemProvider::class
         ),
         new GetCollection(
-            security: 'is_granted("ROLE_TICKET_LIST")',
+            //security: 'is_granted("ROLE_TICKET_LIST")',
             provider: CollectionProvider::class
         ),
         new Post(
