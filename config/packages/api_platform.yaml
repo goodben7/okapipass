@@ -1,0 +1,30 @@
+api_platform:
+    title: OkapiPass API 
+    version: 1.0.0
+    formats:
+        jsonld: ['application/ld+json']
+        json: ['application/json']
+    docs_formats:
+        jsonld: ['application/ld+json']
+        jsonopenapi: ['application/vnd.openapi+json']
+        html: ['text/html']
+    collection:
+        pagination:
+            enabled_parameter_name: pagination
+            items_per_page_parameter_name: itemsPerPage
+    exception_to_status:
+        App\Exception\UserAuthenticationException: 403
+        App\Exception\UnavailableDataException: 404
+        App\Exception\UnauthorizedActionException: 403
+        App\Exception\InvalidActionInputException: 400
+        App\Exception\UnknowRessourceException: 404
+    defaults:
+        pagination_client_enabled: true
+        pagination_client_items_per_page: true
+        stateless: true
+        cache_headers:
+            vary: ['Content-Type', 'Authorization', 'Origin']
+        extra_properties:
+            standard_put: true
+            rfc_7807_compliant_errors: true
+    use_symfony_listeners: true

@@ -9,3 +9,5 @@
 
 controllers:
     resource: routing.controllers
+authentication_token:
+    path: /api/authentication_token
