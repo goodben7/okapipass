@@ -26,9 +26,13 @@ class TicketManager
     public function createFrom(NewTicketModel $model): Ticket
     {
         $userId = $this->security->getUser()?->getUserIdentifier();
+        $user = null;
 
-        /** @var User $user */
-        $user = $this->queries->ask(new GetUserDetails($userId));
+        if (null !== $userId) {
+            /** @var User $user */
+            $user = $this->queries->ask(new GetUserDetails($userId));
+        }
+        
 
         $ticket = new Ticket();
 
