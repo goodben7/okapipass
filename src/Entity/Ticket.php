@@ -37,7 +37,7 @@ use Symfony\Component\Validator\Constraints as Assert;
             provider: CollectionProvider::class
         ),
         new Post(
-            security: 'is_granted("ROLE_TICKET_CREATE")',
+            //security: 'is_granted("ROLE_TICKET_CREATE")',
             input: CreateTicketDto::class,
             processor: CreateTicketProcessor::class,
         )
