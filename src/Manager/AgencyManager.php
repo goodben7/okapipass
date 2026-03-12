@@ -46,6 +46,7 @@ class AgencyManager
         $agency->setEmail($model->email);
         $agency->setPhone($model->phone);
         $agency->setAddress($model->address);
+        $agency->setType($model->type ?? Agency::TYPE_ROAD);
         $agency->setStatus(Agency::STATUS_ACTIVE);
         $agency->setCreatedAt(new \DateTimeImmutable('now'));
         $agency->setCreatedBy($createdBy);
@@ -97,6 +98,10 @@ class AgencyManager
 
         if (null !== $model->address) {
             $agency->setAddress($model->address);
+        }
+
+        if (null !== $model->type) {
+            $agency->setType($model->type);
         }
 
         if (null !== $model->status) {

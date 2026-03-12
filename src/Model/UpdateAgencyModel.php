@@ -21,6 +21,9 @@ class UpdateAgencyModel
         #[Assert\Length(max: 255)]
         public ?string $address = null,
 
+        #[Assert\Choice(callback: [Agency::class, 'getTypesAsList'])]
+        public ?string $type = null,
+
         #[Assert\Choice(callback: [Agency::class, 'getStatusesAsList'])]
         public ?string $status = null,
     ) {

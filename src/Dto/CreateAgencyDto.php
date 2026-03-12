@@ -2,6 +2,7 @@
 
 namespace App\Dto;
 
+use App\Entity\Agency;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class CreateAgencyDto
@@ -20,6 +21,9 @@ class CreateAgencyDto
 
         #[Assert\Length(max: 255)]
         public ?string $address = null,
+
+        #[Assert\Choice(callback: [Agency::class, 'getTypesAsList'])]
+        public ?string $type = Agency::TYPE_ROAD,
     ) {
     }
 }

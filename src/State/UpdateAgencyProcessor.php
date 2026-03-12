@@ -23,6 +23,7 @@ class UpdateAgencyProcessor implements ProcessorInterface
             $data->email,
             $data->phone,
             $data->address,
+            $data->type,
             $data->status,
         );
 

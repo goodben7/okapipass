@@ -22,7 +22,8 @@ class CreateAgencyProcessor implements ProcessorInterface
             $data->name,
             $data->email,
             $data->phone,
-            $data->address
+            $data->address,
+            $data->type,
         );
 
         return $this->manager->createFrom($model);

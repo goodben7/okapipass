@@ -106,6 +106,7 @@ class SeedAgenciesCommand extends Command
             $agency->setEmail($spec['email']);
             $agency->setPhone($spec['phone']);
             $agency->setAddress($spec['address']);
+            $agency->setType(Agency::TYPE_ROAD);
             $agency->setStatus(Agency::STATUS_ACTIVE);
 
             if (!$existing) {

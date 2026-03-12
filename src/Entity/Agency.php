@@ -54,6 +54,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'name' => 'ipartial',
     'email' => 'exact',
     'phone' => 'exact',
+    'type' => 'exact',
     'status' => 'exact',
     'createdBy.id' => 'exact',
 ])]
@@ -62,6 +63,10 @@ use Symfony\Component\Validator\Constraints as Assert;
 class Agency implements RessourceInterface
 {
     public const string ID_PREFIX = 'AG';
+
+    public const string TYPE_ROAD = 'ROAD';
+    public const string TYPE_LAKE = 'LAKE';
+    public const string TYPE_RIVER = 'RIVER';
 
     public const string STATUS_ACTIVE = 'ACTIVE';
     public const string STATUS_INACTIVE = 'INACTIVE';
@@ -98,6 +103,11 @@ class Agency implements RessourceInterface
     #[Groups(['agency:get'])]
     private ?string $address = null;
 
+    #[ORM\Column(name: 'AG_TYPE', length: 10)]
+    #[Assert\Choice(callback: [self::class, 'getTypesAsList'])]
+    #[Groups(['agency:get'])]
+    private ?string $type = self::TYPE_ROAD;
+
     #[ORM\Column(name: 'AG_STATUS', length: 10)]
     #[Assert\Choice(callback: [self::class, 'getStatusesAsList'])]
     #[Groups(['agency:get'])]
@@ -121,6 +131,15 @@ class Agency implements RessourceInterface
         return [
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
+        ];
+    }
+
+    public static function getTypesAsList(): array
+    {
+        return [
+            self::TYPE_ROAD,
+            self::TYPE_LAKE,
+            self::TYPE_RIVER,
         ];
     }
 
@@ -185,6 +204,18 @@ class Agency implements RessourceInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function setType(string $type): static
+    {
+        $this->type = $type;
 
         return $this;
     }
