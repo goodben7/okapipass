@@ -52,4 +52,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_TRIP_UPDATE', "Modifier un trajet");
     yield Permission::new('ROLE_TRIP_DETAILS', "Consulter les détails d'un trajet");
 
+    yield Permission::new('ROLE_HOTEL_CREATE', "Créer un hôtel");
+    yield Permission::new('ROLE_HOTEL_LIST', "Consulter la liste des hôtels");
+    yield Permission::new('ROLE_HOTEL_UPDATE', "Modifier un hôtel");
+    yield Permission::new('ROLE_HOTEL_DETAILS', "Consulter les détails d'un hôtel");
+
 };

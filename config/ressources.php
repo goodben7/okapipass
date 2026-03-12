@@ -10,6 +10,7 @@ use App\Entity\Profile;
 use App\Entity\Ticket;
 use App\Entity\Trip;
 use App\Entity\User;
+use App\Entity\Hotel;
 use App\Model\Ressource;
 
 return static function (): iterable {
@@ -22,5 +23,6 @@ return static function (): iterable {
     yield Ressource::new("ticket", Ticket::class, "TI", true);
     yield Ressource::new("payment", Payment::class, "PA", true);
     yield Ressource::new("trip", Trip::class, "TR", true);
+    yield Ressource::new("hotel", Hotel::class, "HO", true);
 
 };
