@@ -57,4 +57,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_HOTEL_UPDATE', "Modifier un hôtel");
     yield Permission::new('ROLE_HOTEL_DETAILS', "Consulter les détails d'un hôtel");
 
+    yield Permission::new('ROLE_TOURIST_SITE_CREATE', "Créer un site touristique");
+    yield Permission::new('ROLE_TOURIST_SITE_LIST', "Consulter la liste des sites touristiques");
+    yield Permission::new('ROLE_TOURIST_SITE_UPDATE', "Modifier un site touristique");
+    yield Permission::new('ROLE_TOURIST_SITE_DETAILS', "Consulter les détails d'un site touristique");
+
 };

@@ -15,6 +15,7 @@ class EntityType
     public const string PAYMENT = 'PAYMENT';
     public const string TRIP = 'TRIP';
     public const string HOTEL = 'HOTEL';
+    public const string TOURIST_SITE = 'TOURIST_SITE';
 
     public static function getAll(): array
     {
@@ -36,6 +37,7 @@ class EntityType
                 self::PAYMENT,
                 self::TRIP,
                 self::HOTEL,
+                self::TOURIST_SITE,
             ],  
         ];
     }
