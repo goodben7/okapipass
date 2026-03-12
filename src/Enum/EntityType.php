@@ -9,6 +9,7 @@ class EntityType
     public const string PROFILE = 'PROFILE'; // App\Entity\Profile
     public const string ACTIVITY = 'ACTIVITY'; // App\Entity\Activity
     public const string CHECKPOINT = 'CHECKPOINT';
+    public const string AGENCY = 'AGENCY';
     public const string GOPASS = 'GOPASS';
     public const string TICKET = 'TICKET';
     public const string PAYMENT = 'PAYMENT';
@@ -27,6 +28,7 @@ class EntityType
                 self::PROFILE,
                 self::ACTIVITY,
                 self::CHECKPOINT,
+                self::AGENCY,
                 self::GOPASS,
                 self::TICKET,
                 self::PAYMENT,

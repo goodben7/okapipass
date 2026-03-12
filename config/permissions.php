@@ -42,4 +42,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_PAYMENT_UPDATE', "Modifier un paiement");
     yield Permission::new('ROLE_PAYMENT_DETAILS', "Consulter les détails d'un paiement");
 
+    yield Permission::new('ROLE_AGENCY_CREATE', "Créer une agence");
+    yield Permission::new('ROLE_AGENCY_LIST', "Consulter la liste des agences");
+    yield Permission::new('ROLE_AGENCY_UPDATE', "Modifier une agence");
+    yield Permission::new('ROLE_AGENCY_DETAILS', "Consulter les détails d'une agence");
+
 };
