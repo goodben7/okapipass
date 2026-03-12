@@ -13,6 +13,7 @@ class EntityType
     public const string GOPASS = 'GOPASS';
     public const string TICKET = 'TICKET';
     public const string PAYMENT = 'PAYMENT';
+    public const string TRIP = 'TRIP';
 
     public static function getAll(): array
     {
@@ -32,6 +33,7 @@ class EntityType
                 self::GOPASS,
                 self::TICKET,
                 self::PAYMENT,
+                self::TRIP,
             ],  
         ];
     }

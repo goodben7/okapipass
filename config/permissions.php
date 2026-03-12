@@ -47,4 +47,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_AGENCY_UPDATE', "Modifier une agence");
     yield Permission::new('ROLE_AGENCY_DETAILS', "Consulter les détails d'une agence");
 
+    yield Permission::new('ROLE_TRIP_CREATE', "Créer un trajet");
+    yield Permission::new('ROLE_TRIP_LIST', "Consulter la liste des trajets");
+    yield Permission::new('ROLE_TRIP_UPDATE', "Modifier un trajet");
+    yield Permission::new('ROLE_TRIP_DETAILS', "Consulter les détails d'un trajet");
+
 };
