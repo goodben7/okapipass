@@ -48,6 +48,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'displayName' => 'ipartial',
     'phone' => 'exact',
     'status' => 'exact',
+    'paymentStatus' => 'exact',
     'goPass.id' => 'exact',
     'departure.id' => 'exact',
     'arrival.id' => 'exact',
@@ -64,6 +65,11 @@ class Ticket implements RessourceInterface
     public const string STATUS_ISSUED = 'ISSUED';
     public const string STATUS_VALIDATED = 'VALIDATED';
     public const string STATUS_CANCELLED = 'CANCELLED';
+
+    public const string PAYMENT_STATUS_PENDING = 'PENDING';
+    public const string PAYMENT_STATUS_PAID = 'PAID';
+    public const string PAYMENT_STATUS_FAILED = 'FAILED';
+    public const string PAYMENT_STATUS_CANCELLED = 'CANCELLED';
 
     public const string EVENT_TICKET_CREATED = "ticket.created";
 
@@ -93,6 +99,11 @@ class Ticket implements RessourceInterface
     #[Assert\Choice(callback: [self::class, 'getStatusesAsList'])]
     #[Groups(['ticket:get'])]
     private ?string $status = self::STATUS_ISSUED;
+
+    #[ORM\Column(name: 'TI_PAYMENT_STATUS', length: 10)]
+    #[Assert\Choice(callback: [self::class, 'getPaymentStatusesAsList'])]
+    #[Groups(['ticket:get'])]
+    private ?string $paymentStatus = self::PAYMENT_STATUS_PENDING;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(name: 'TI_GOPASS', nullable: false, referencedColumnName: 'GP_ID')]
@@ -139,6 +150,16 @@ class Ticket implements RessourceInterface
         ];
     }
 
+    public static function getPaymentStatusesAsList(): array
+    {
+        return [
+            self::PAYMENT_STATUS_PENDING,
+            self::PAYMENT_STATUS_PAID,
+            self::PAYMENT_STATUS_FAILED,
+            self::PAYMENT_STATUS_CANCELLED,
+        ];
+    }
+
     public function getId(): ?string
     {
         return $this->id;
@@ -176,6 +197,18 @@ class Ticket implements RessourceInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getPaymentStatus(): ?string
+    {
+        return $this->paymentStatus;
+    }
+
+    public function setPaymentStatus(string $paymentStatus): static
+    {
+        $this->paymentStatus = $paymentStatus;
 
         return $this;
     }

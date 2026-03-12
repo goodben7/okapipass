@@ -65,6 +65,10 @@ class PaymentCreatedCashSubscriber implements EventSubscriberInterface
             $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
         }
 
+        if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
+        }
+
         $this->em->flush();
     }
 }

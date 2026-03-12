@@ -17,6 +17,7 @@ use App\Dto\CreatePaymentDto;
 use App\Model\RessourceInterface;
 use App\Repository\PaymentRepository;
 use App\State\CreatePaymentProcessor;
+use App\State\FlexpayWebhookProcessor;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
@@ -41,6 +42,12 @@ use Symfony\Component\Validator\Constraints as Assert;
             security: 'is_granted("ROLE_PAYMENT_CREATE")',
             input: CreatePaymentDto::class,
             processor: CreatePaymentProcessor::class,
+        ),
+        new Post(
+            uriTemplate: '/payments/webhook/flexpay',
+            processor: FlexpayWebhookProcessor::class,
+            read: false,
+            deserialize: false
         )
     ]
 )]
@@ -65,6 +72,8 @@ class Payment implements RessourceInterface
     public const string STATUS_PAID = 'PAID';
     public const string STATUS_FAILED = 'FAILED';
     public const string STATUS_CANCELLED = 'CANCELLED';
+
+    public const string PROVIDER_FLEXPAY = 'FLEXPAY';
 
     public const string METHOD_MOBILE_MONEY = 'MOBILE_MONEY';
     public const string METHOD_CARD = 'CARD';
@@ -109,6 +118,22 @@ class Payment implements RessourceInterface
     #[Assert\Choice(callback: [self::class, 'getStatusesAsList'])]
     #[Groups(['payment:get'])]
     private ?string $status = self::STATUS_PENDING;
+
+    #[ORM\Column(name: 'PA_PROVIDER_TRANSACTION_ID', length: 120, nullable: true)]
+    #[Groups(['payment:get'])]
+    private ?string $providerTransactionId = null;
+
+    #[ORM\Column(name: 'PA_PROVIDER', length: 30, nullable: true)]
+    #[Groups(['payment:get'])]
+    private ?string $provider = null;
+
+    #[ORM\Column(name: 'PA_PROVIDER_RESPONSE', type: Types::JSON, nullable: true)]
+    #[Groups(['payment:get'])]
+    private ?array $providerResponse = null;
+
+    #[ORM\Column(type: Types::JSON, nullable: true, name:'PA_PROVIDER_WEBHOOK')]
+    #[Groups(['payment:get'])]
+    private ?array $providerWebhook = null;
 
     #[ORM\Column(name: 'PA_PAID_AT', nullable: true)]
     #[Groups(['payment:get'])]
@@ -219,6 +244,42 @@ class Payment implements RessourceInterface
         return $this;
     }
 
+    public function getProviderTransactionId(): ?string
+    {
+        return $this->providerTransactionId;
+    }
+
+    public function setProviderTransactionId(?string $providerTransactionId): static
+    {
+        $this->providerTransactionId = $providerTransactionId;
+
+        return $this;
+    }
+
+    public function getProvider(): ?string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(?string $provider): static
+    {
+        $this->provider = $provider;
+
+        return $this;
+    }
+
+    public function getProviderResponse(): ?array
+    {
+        return $this->providerResponse;
+    }
+
+    public function setProviderResponse(?array $providerResponse): static
+    {
+        $this->providerResponse = $providerResponse;
+
+        return $this;
+    }
+
     public function getPaidAt(): ?\DateTimeImmutable
     {
         return $this->paidAt;
@@ -252,5 +313,25 @@ class Payment implements RessourceInterface
     public function buildCreatedAt(): void
     {
         $this->createdAt = new \DateTimeImmutable();
+    }
+
+    /**
+     * Get the value of providerWebhook
+     */ 
+    public function getProviderWebhook(): array|null
+    {
+        return $this->providerWebhook;
+    }
+
+    /**
+     * Set the value of providerWebhook
+     *
+     * @return  self
+     */ 
+    public function setProviderWebhook(?array $providerWebhook): static
+    {
+        $this->providerWebhook = $providerWebhook;
+
+        return $this;
     }
 }
