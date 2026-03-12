@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(
     name: 'ar:seed:agencies',
-    description: 'Seed agencies (Lubumbashi)',
+    description: 'Seed agencies (RDC)',
 )]
 class SeedAgenciesCommand extends Command
 {
@@ -24,70 +24,74 @@ class SeedAgenciesCommand extends Command
     {
         $specs = [
             [
-                'name' => 'Agence Lubumbashi Express',
-                'email' => 'contact@lubumbashi-express.cd',
+                'name' => 'Agence Kinshasa Express',
+                'email' => 'contact@kinshasa-express.cd',
                 'phone' => '+243815000001',
-                'address' => 'Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Kinshasa, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
             [
-                'name' => 'Katanga Road Transport',
-                'email' => 'info@katanga-road-transport.cd',
+                'name' => 'Lubumbashi Road Transport',
+                'email' => 'info@lubumbashi-road-transport.cd',
                 'phone' => '+243815000002',
                 'address' => 'Avenue Kasa-Vubu, Lubumbashi, Haut-Katanga, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
             [
-                'name' => 'Congo Shuttle Lushi',
-                'email' => 'support@congo-shuttle.cd',
+                'name' => 'Goma Shuttle',
+                'email' => 'support@goma-shuttle.cd',
                 'phone' => '+243815000003',
-                'address' => 'Commune Kampemba, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Goma, Nord-Kivu, RDC',
+                'type' => Agency::TYPE_LAKE,
             ],
             [
-                'name' => 'Lushi Cargo & Passengers',
-                'email' => 'hello@lushi-cargo-passengers.cd',
+                'name' => 'Bukavu Lake Transport',
+                'email' => 'hello@bukavu-lake-transport.cd',
                 'phone' => '+243815000004',
-                'address' => 'Route Likasi, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Bukavu, Sud-Kivu, RDC',
+                'type' => Agency::TYPE_LAKE,
             ],
             [
-                'name' => 'Haut-Katanga Voyages',
-                'email' => 'reservations@hk-voyages.cd',
+                'name' => 'Kisangani Riverline',
+                'email' => 'reservations@kisangani-riverline.cd',
                 'phone' => '+243815000005',
-                'address' => 'Centre-ville, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Kisangani, Tshopo, RDC',
+                'type' => Agency::TYPE_RIVER,
             ],
             [
-                'name' => 'Copperbelt Transit',
-                'email' => 'contact@copperbelt-transit.cd',
+                'name' => 'Matadi River Cargo',
+                'email' => 'contact@matadi-river-cargo.cd',
                 'phone' => '+243815000006',
-                'address' => 'Avenue Lumumba, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Matadi, Kongo Central, RDC',
+                'type' => Agency::TYPE_RIVER,
             ],
             [
-                'name' => 'Kasumbalesa Roadline',
-                'email' => 'info@kasumbalesa-roadline.cd',
+                'name' => 'Mbuji-Mayi Roadline',
+                'email' => 'info@mbuji-mayi-roadline.cd',
                 'phone' => '+243815000007',
-                'address' => 'Corridor Lubumbashi–Kasumbalesa, Haut-Katanga, RDC',
+                'address' => 'Mbuji-Mayi, Kasaï-Oriental, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
             [
-                'name' => 'Lualaba & Katanga Logistics',
-                'email' => 'ops@lualaba-katanga-logistics.cd',
+                'name' => 'Kananga Transit',
+                'email' => 'ops@kananga-transit.cd',
                 'phone' => '+243815000008',
-                'address' => 'Quartier Industriel, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Kananga, Kasaï-Central, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
             [
-                'name' => 'KPM Cargo & TLC',
-                'email' => 'info@kpmcargo.cd',
+                'name' => 'Kolwezi Logistics',
+                'email' => 'info@kolwezi-logistics.cd',
                 'phone' => '+243843333011',
-                'address' => '7876 Av. de Ruwe, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Kolwezi, Lualaba, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
             [
-                'name' => 'MULYKAP TERMINAL - Lubumbashi',
-                'email' => 'info@mulykap.com',
+                'name' => 'Likasi Express',
+                'email' => 'info@likasi-express.cd',
                 'phone' => '+243891148655',
-                'address' => '751 Av. Adoula, Lubumbashi, Haut-Katanga, RDC',
-            ],
-            [
-                'name' => 'TransKat',
-                'email' => 'info@transkat.cd',
-                'phone' => '+243815000099',
-                'address' => 'Av. Moero, Lubumbashi, Haut-Katanga, RDC',
+                'address' => 'Likasi, Haut-Katanga, RDC',
+                'type' => Agency::TYPE_ROAD,
             ],
         ];
 
@@ -106,7 +110,7 @@ class SeedAgenciesCommand extends Command
             $agency->setEmail($spec['email']);
             $agency->setPhone($spec['phone']);
             $agency->setAddress($spec['address']);
-            $agency->setType(Agency::TYPE_ROAD);
+            $agency->setType($spec['type']);
             $agency->setStatus(Agency::STATUS_ACTIVE);
 
             if (!$existing) {
