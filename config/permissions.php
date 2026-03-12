@@ -62,4 +62,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_TOURIST_SITE_UPDATE', "Modifier un site touristique");
     yield Permission::new('ROLE_TOURIST_SITE_DETAILS', "Consulter les détails d'un site touristique");
 
+    yield Permission::new('ROLE_DOC_CREATE', "Créer un document");
+    yield Permission::new('ROLE_DOC_LIST', "Consulter la liste des documents");
+    yield Permission::new('ROLE_DOC_DETAILS', "Consulter les détails d'un document");
+    yield Permission::new('ROLE_DOC_DELETE', "Supprimer un document");
+
 };
