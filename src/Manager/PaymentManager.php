@@ -117,8 +117,13 @@ class PaymentManager
         $payment->setProviderWebhook($payload);
 
         $incomingStatus = $payload['status']
-            ?? ($payload['transaction']['status'] ?? null);
-        $incomingStatus = \is_string($incomingStatus) ? \strtoupper(\trim($incomingStatus)) : null;
+            ?? ($payload['transaction']['status'] ?? null)
+            ?? ($payload['code'] ?? null)
+            ?? ($payload['message'] ?? null);
+
+        $incomingStatus = \is_string($incomingStatus)
+            ? \strtoupper(\trim($incomingStatus))
+            : (\is_int($incomingStatus) ? (string) $incomingStatus : null);
 
         $this->logger->info('payment.flexpay.webhook.received', [
             'paymentId' => $payment->getId(),
@@ -136,7 +141,27 @@ class PaymentManager
             return $payment;
         }
 
-        if ('SUCCESS' === $incomingStatus) {
+        $shouldCheck = true;
+
+        if (\in_array($incomingStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR'], true)) {
+            if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                $payment->setStatus(Payment::STATUS_FAILED);
+            }
+
+            $ticket = $payment->getTicket();
+            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
+            }
+
+            $this->logger->info('payment.flexpay.webhook.marked_failed_from_payload', [
+                'paymentId' => $payment->getId(),
+                'transactionId' => (string) $transactionId,
+                'incomingStatus' => $incomingStatus,
+                'ticketId' => $payment->getTicket()?->getId(),
+            ]);
+        }
+
+        if ($shouldCheck && Payment::STATUS_PAID !== $payment->getStatus()) {
             try {
                 $check = $this->gateway->checkStatus((string) $transactionId);
                 $providerWebhook = $payment->getProviderWebhook() ?? [];
@@ -154,7 +179,7 @@ class PaymentManager
                     'success' => $check->isSuccess(),
                 ]);
 
-                if ($check->isSuccess() && ($check->status ?? null) === 'SUCCESS') {
+                if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
                     $now = new \DateTimeImmutable();
 
                     if (Payment::STATUS_PAID !== $payment->getStatus()) {
@@ -190,8 +215,7 @@ class PaymentManager
                         'transactionId' => (string) $transactionId,
                         'ticketId' => $payment->getTicket()?->getId(),
                     ]);
-                } else {
-                    if (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+                } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
                     if (Payment::STATUS_PAID !== $payment->getStatus()) {
                         $payment->setStatus(Payment::STATUS_FAILED);
                     }
@@ -200,14 +224,19 @@ class PaymentManager
                     if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
                         $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
                     }
-                    }
 
-                    $this->logger->info('payment.flexpay.webhook.not_paid_after_check', [
+                    $this->logger->info('payment.flexpay.webhook.marked_failed_after_check', [
                         'paymentId' => $payment->getId(),
                         'transactionId' => (string) $transactionId,
                         'providerStatus' => $providerStatus,
                         'normalizedStatus' => $normalizedStatus,
-                        'paymentStatus' => $payment->getStatus(),
+                    ]);
+                } else {
+                    $this->logger->info('payment.flexpay.webhook.left_pending_after_check', [
+                        'paymentId' => $payment->getId(),
+                        'transactionId' => (string) $transactionId,
+                        'providerStatus' => $providerStatus,
+                        'normalizedStatus' => $normalizedStatus,
                     ]);
                 }
             } catch (\Throwable $e) {
@@ -218,28 +247,6 @@ class PaymentManager
                     'message' => $e->getMessage(),
                 ]);
             }
-        } elseif (\in_array($incomingStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR'], true)) {
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_FAILED);
-            }
-
-            $ticket = $payment->getTicket();
-            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
-            }
-
-            $this->logger->info('payment.flexpay.webhook.marked_failed_from_payload', [
-                'paymentId' => $payment->getId(),
-                'transactionId' => (string) $transactionId,
-                'incomingStatus' => $incomingStatus,
-                'ticketId' => $payment->getTicket()?->getId(),
-            ]);
-        } else {
-            $this->logger->info('payment.flexpay.webhook.ignored_unknown_status', [
-                'paymentId' => $payment->getId(),
-                'transactionId' => (string) $transactionId,
-                'incomingStatus' => $incomingStatus,
-            ]);
         }
 
         $this->em->flush();
