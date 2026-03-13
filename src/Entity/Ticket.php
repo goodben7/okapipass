@@ -17,6 +17,7 @@ use App\Dto\CreateTicketDto;
 use App\Model\RessourceInterface;
 use App\Repository\TicketRepository;
 use App\State\CreateTicketProcessor;
+use App\State\TicketFlexpayCheckPaymentStatusProcessor;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -40,6 +41,13 @@ use Symfony\Component\Validator\Constraints as Assert;
             //security: 'is_granted("ROLE_TICKET_CREATE")',
             input: CreateTicketDto::class,
             processor: CreateTicketProcessor::class,
+        ),
+        new Post(
+            uriTemplate: '/tickets/{id}/check-payment-status/flexpay',
+            input: false,
+            processor: TicketFlexpayCheckPaymentStatusProcessor::class,
+            deserialize: false,
+            status: 200
         )
     ]
 )]

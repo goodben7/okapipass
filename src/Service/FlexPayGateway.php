@@ -29,14 +29,6 @@ class FlexPayGateway implements PaymentGatewayInterface
         $phone = $payment->getTicket()->getPhone();
         $phone = null === $phone ? null : \preg_replace('/\D+/', '', $phone);
 
-        $callbackUrl = $this->normalizeCallbackUrl($this->callbackUrl);
-
-        if ($callbackUrl !== $this->callbackUrl) {
-            $this->logger->warning('flexpay.callback_url.normalized', [
-                'paymentId' => $payment->getId(),
-            ]);
-        }
-
         $payload = [
             'merchant' => $this->merchantId,
             'type' => '1',
@@ -44,7 +36,7 @@ class FlexPayGateway implements PaymentGatewayInterface
             'amount' => $payment->getAmount(),
             'currency' => $payment->getCurrency(),
             'description' => 'Payment ' . $payment->getReference(),
-            'callbackUrl' => $callbackUrl,
+            'callbackUrl' => $this->callbackUrl,
             'phone' => $phone,
         ];
 
@@ -53,7 +45,7 @@ class FlexPayGateway implements PaymentGatewayInterface
             'reference' => $payment->getReference(),
             'amount' => $payment->getAmount(),
             'currency' => $payment->getCurrency(),
-            'callbackUrl' => $callbackUrl,
+            'callbackUrl' => $this->callbackUrl,
         ]);
 
         try {
@@ -103,11 +95,6 @@ class FlexPayGateway implements PaymentGatewayInterface
             message: $message,
             raw: $data
         );
-    }
-
-    private function normalizeCallbackUrl(string $callbackUrl): string
-    {
-        return \trim($callbackUrl, " \t\n\r\0\x0B`\"'");
     }
 
     public function checkStatus(string $transactionId): GatewayResponse

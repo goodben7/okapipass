@@ -55,7 +55,6 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Post(
             uriTemplate: '/payments/{id}/check-status/flexpay',
-            //security: 'is_granted("ROLE_PAYMENT_DETAILS")',
             input: false,
             processor: FlexpayCheckStatusProcessor::class,
             deserialize: false,
