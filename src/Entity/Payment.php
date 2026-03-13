@@ -14,9 +14,11 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use App\Doctrine\IdGenerator;
 use App\Dto\CreatePaymentDto;
+use App\Dto\FlexpayWebhookDto;
 use App\Model\RessourceInterface;
 use App\Repository\PaymentRepository;
 use App\State\CreatePaymentProcessor;
+use App\State\FlexpayCheckStatusProcessor;
 use App\State\FlexpayWebhookProcessor;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -45,9 +47,19 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Post(
             uriTemplate: '/payments/webhook/flexpay',
+            input: FlexpayWebhookDto::class,
             processor: FlexpayWebhookProcessor::class,
             read: false,
-            deserialize: false
+            denormalizationContext: ['allow_extra_attributes' => true],
+            status: 200
+        ),
+        new Post(
+            uriTemplate: '/payments/{id}/check-status/flexpay',
+            //security: 'is_granted("ROLE_PAYMENT_DETAILS")',
+            input: false,
+            processor: FlexpayCheckStatusProcessor::class,
+            deserialize: false,
+            status: 200
         )
     ]
 )]

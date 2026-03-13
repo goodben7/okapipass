@@ -7,11 +7,13 @@ use App\Entity\Ticket;
 use App\Entity\User;
 use App\Message\Query\GetUserDetails;
 use App\Message\Query\QueryBusInterface;
+use App\Model\PaymentGatewayInterface;
 use App\Model\NewPaymentModel;
 use App\Repository\PaymentRepository;
 use App\Service\ActivityEventDispatcher;
 use App\Service\TicketUniqueReferenceGenerator;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -26,6 +28,8 @@ class PaymentManager
         private RequestStack $requestStack,
         private PaymentRepository $paymentRepository,
         private TicketUniqueReferenceGenerator $referenceGenerator,
+        private PaymentGatewayInterface $gateway,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -75,7 +79,7 @@ class PaymentManager
 
         $transactionId = $payload['transactionId'] ?? null;
 
-        if (!$transactionId) {
+        if (null === $transactionId || '' === \trim((string) $transactionId)) {
             return null;
         }
 
@@ -87,37 +91,78 @@ class PaymentManager
             return null;
         }
 
-        if (($payload['status'] ?? null) === 'SUCCESS') {
-            $now = new \DateTimeImmutable();
+        $payment->setProviderWebhook($payload);
 
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_PAID);
+        $incomingStatus = $payload['status'] ?? null;
+        $incomingStatus = \is_string($incomingStatus) ? \strtoupper(\trim($incomingStatus)) : null;
+
+        if (Payment::STATUS_PAID === $payment->getStatus()) {
+            $this->em->flush();
+
+            return $payment;
+        }
+
+        if ('SUCCESS' === $incomingStatus) {
+            try {
+                $check = $this->gateway->checkStatus((string) $transactionId);
+                $providerWebhook = $payment->getProviderWebhook() ?? [];
+                $providerWebhook['check'] = $check->raw;
+                $payment->setProviderWebhook($providerWebhook);
+
+                if ($check->isSuccess() && ($check->status ?? null) === 'SUCCESS') {
+                    $now = new \DateTimeImmutable();
+
+                    if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                        $payment->setStatus(Payment::STATUS_PAID);
+                    }
+
+                    if (null === $payment->getPaidAt()) {
+                        $payment->setPaidAt($now);
+                    }
+
+                    $ticket = $payment->getTicket();
+
+                    if ($ticket instanceof Ticket) {
+                        if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
+                            $ticket->setStatus(Ticket::STATUS_VALIDATED);
+                        }
+
+                        if (null === $ticket->getValidatedAt()) {
+                            $ticket->setValidatedAt($now);
+                        }
+
+                        if (null === $ticket->getUniqueReference()) {
+                            $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
+                        }
+
+                        if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
+                        }
+                    }
+                } else {
+                    $providerStatus = $check->status ?? null;
+                    $normalizedStatus = \is_string($providerStatus) ? \strtoupper(\trim($providerStatus)) : $providerStatus;
+
+                    if (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+                    if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                        $payment->setStatus(Payment::STATUS_FAILED);
+                    }
+
+                    $ticket = $payment->getTicket();
+                    if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                        $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
+                    }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('payment.flexpay.webhook.check_status.exception', [
+                    'paymentId' => $payment->getId(),
+                    'transactionId' => $transactionId,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
             }
-
-            if (null === $payment->getPaidAt()) {
-                $payment->setPaidAt($now);
-            }
-
-            $ticket = $payment->getTicket();
-
-            if ($ticket instanceof Ticket) {
-                if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-                    $ticket->setStatus(Ticket::STATUS_VALIDATED);
-                }
-
-                if (null === $ticket->getValidatedAt()) {
-                    $ticket->setValidatedAt($now);
-                }
-
-                if (null === $ticket->getUniqueReference()) {
-                    $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-                }
-
-                if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                    $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-                }
-            }
-        } else {
+        } elseif (\in_array($incomingStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR'], true)) {
             if (Payment::STATUS_PAID !== $payment->getStatus()) {
                 $payment->setStatus(Payment::STATUS_FAILED);
             }
@@ -127,8 +172,6 @@ class PaymentManager
                 $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
             }
         }
-
-        $payment->setProviderWebhook($payload);
 
         $this->em->flush();
 

@@ -128,18 +128,22 @@ class FlexPayGateway implements PaymentGatewayInterface
             );
         }
 
-        $success = ($data['status'] ?? null) === 'SUCCESS';
+        $providerStatus = $data['status'] ?? ($data['transaction']['status'] ?? null);
+        $normalizedStatus = \is_string($providerStatus) ? \strtoupper(\trim($providerStatus)) : $providerStatus;
+
+        $success = $normalizedStatus === 'SUCCESS' || $normalizedStatus === '0' || $normalizedStatus === 0;
 
         $this->logger->info('flexpay.check_status.response', [
             'transactionId' => $transactionId,
             'httpStatus' => $statusCode,
-            'status' => $data['status'] ?? null,
+            'status' => $providerStatus,
         ]);
 
         return new GatewayResponse(
             success: $success,
             transactionId: $transactionId,
-            status: $data['status'] ?? null,
+            status: $providerStatus,
+            message: $data['message'] ?? null,
             raw: $data
         );
     }
