@@ -72,12 +72,23 @@ class PaymentManager
             return null;
         }
 
-        $payload = \json_decode($request->getContent(), true);
+        $rawBody = $request->getContent();
+        $payload = \json_decode($rawBody, true);
 
         if (!$payload) {
-            $this->logger->warning('payment.flexpay.webhook.invalid_payload');
+            $this->logger->warning('payment.flexpay.webhook.invalid_payload', [
+                'contentType' => $request->headers->get('content-type'),
+                'bodySize' => \strlen($rawBody),
+                'bodyPreview' => \substr($rawBody, 0, 2000),
+            ]);
             return null;
         }
+
+        $this->logger->info('payment.flexpay.webhook.body', [
+            'contentType' => $request->headers->get('content-type'),
+            'bodySize' => \strlen($rawBody),
+            'payload' => $this->sanitizeWebhookPayload($payload),
+        ]);
 
         $transactionId = $payload['transactionId'] ?? null;
 
@@ -236,5 +247,47 @@ class PaymentManager
         ]);
 
         return $payment;
+    }
+
+    private function sanitizeWebhookPayload(mixed $value): mixed
+    {
+        if (\is_array($value)) {
+            $out = [];
+
+            foreach ($value as $k => $v) {
+                $key = \is_string($k) ? $k : (string) $k;
+
+                if (\preg_match('/token|authorization|secret|password|passwd|bearer/i', $key)) {
+                    $out[$k] = '[REDACTED]';
+                    continue;
+                }
+
+                if (\preg_match('/phone|msisdn|customer/i', $key)) {
+                    $digits = \is_string($v) ? \preg_replace('/\D+/', '', $v) : null;
+
+                    if (null !== $digits && '' !== $digits) {
+                        $out[$k] = '***' . \substr($digits, -3);
+                    } else {
+                        $out[$k] = '[REDACTED]';
+                    }
+
+                    continue;
+                }
+
+                $out[$k] = $this->sanitizeWebhookPayload($v);
+            }
+
+            return $out;
+        }
+
+        if (\is_string($value)) {
+            if (\strlen($value) > 500) {
+                return \substr($value, 0, 500) . '…';
+            }
+
+            return $value;
+        }
+
+        return $value;
     }
 }
