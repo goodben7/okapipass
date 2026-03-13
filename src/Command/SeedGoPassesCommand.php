@@ -25,21 +25,21 @@ class SeedGoPassesCommand extends Command
         $specs = [
             [
                 'code' => 'CDF_ROUTIER',
-                'label' => 'GoPass Routier (CDF)',
+                'label' => 'Pass Routier',
                 'transportType' => GoPass::TRANSPORT_ROUTIER,
                 'price' => 10000.0,
                 'currency' => 'CDF',
             ],
             [
                 'code' => 'CDF_FLUVIAL',
-                'label' => 'GoPass Fluvial (CDF)',
+                'label' => 'Pass Fluvial',
                 'transportType' => GoPass::TRANSPORT_FLUVIAL,
                 'price' => 20000.0,
                 'currency' => 'CDF',
             ],
             [
                 'code' => 'CDF_LACUSTRE',
-                'label' => 'GoPass Lacustre (CDF)',
+                'label' => 'Pass Lacustre',
                 'transportType' => GoPass::TRANSPORT_LACUSTRE,
                 'price' => 25000.0,
                 'currency' => 'CDF',
