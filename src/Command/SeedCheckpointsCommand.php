@@ -41,6 +41,13 @@ class SeedCheckpointsCommand extends Command
             ['label' => 'Butembo', 'latitude' => 0.1416, 'longitude' => 29.2917],
             ['label' => 'Kindu', 'latitude' => -2.9500, 'longitude' => 25.9500],
             ['label' => 'Boma', 'latitude' => -5.8540, 'longitude' => 13.0536],
+            ['label' => 'Kikwit', 'latitude' => -5.0406, 'longitude' => 18.8162],
+            ['label' => 'Bandundu', 'latitude' => -3.3167, 'longitude' => 17.3667],
+            ['label' => 'Kalemie', 'latitude' => -5.9475, 'longitude' => 29.1947],
+            ['label' => 'Bunia', 'latitude' => 1.5656, 'longitude' => 30.2528],
+            ['label' => 'Isiro', 'latitude' => 2.7739, 'longitude' => 27.6167],
+            ['label' => 'Gemena', 'latitude' => 3.2570, 'longitude' => 19.7723],
+            ['label' => 'Gbadolite', 'latitude' => 4.2790, 'longitude' => 21.0023],
         ];
 
         $repo = $this->em->getRepository(Checkpoint::class);

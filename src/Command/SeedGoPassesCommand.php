@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(
     name: 'ar:seed:gopasses',
-    description: 'Seed GoPass (CDF)',
+    description: 'Seed GoPass',
 )]
 class SeedGoPassesCommand extends Command
 {
@@ -24,22 +24,22 @@ class SeedGoPassesCommand extends Command
     {
         $specs = [
             [
-                'code' => 'CDF_ROUTIER',
-                'label' => 'Pass Routier',
+                'code' => 'ROUTIER',
+                'label' => 'Routier',
                 'transportType' => GoPass::TRANSPORT_ROUTIER,
                 'price' => 10000.0,
                 'currency' => 'CDF',
             ],
             [
-                'code' => 'CDF_FLUVIAL',
-                'label' => 'Pass Fluvial',
+                'code' => 'FLUVIAL',
+                'label' => 'Fluvial',
                 'transportType' => GoPass::TRANSPORT_FLUVIAL,
                 'price' => 20000.0,
                 'currency' => 'CDF',
             ],
             [
-                'code' => 'CDF_LACUSTRE',
-                'label' => 'Pass Lacustre',
+                'code' => 'LACUSTRE',
+                'label' => 'Lacustre',
                 'transportType' => GoPass::TRANSPORT_LACUSTRE,
                 'price' => 25000.0,
                 'currency' => 'CDF',
