@@ -90,7 +90,11 @@ class PaymentManager
             'payload' => $this->sanitizeWebhookPayload($payload),
         ]);
 
-        $transactionId = $payload['transactionId'] ?? null;
+        $transactionId = $payload['transactionId']
+            ?? $payload['orderNumber']
+            ?? $payload['order_number']
+            ?? $payload['reference']
+            ?? ($payload['transaction']['reference'] ?? null);
 
         if (null === $transactionId || '' === \trim((string) $transactionId)) {
             $this->logger->warning('payment.flexpay.webhook.missing_transaction_id', [
@@ -112,7 +116,8 @@ class PaymentManager
 
         $payment->setProviderWebhook($payload);
 
-        $incomingStatus = $payload['status'] ?? null;
+        $incomingStatus = $payload['status']
+            ?? ($payload['transaction']['status'] ?? null);
         $incomingStatus = \is_string($incomingStatus) ? \strtoupper(\trim($incomingStatus)) : null;
 
         $this->logger->info('payment.flexpay.webhook.received', [
