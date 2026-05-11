@@ -38,11 +38,13 @@ final class PaymentCardFormController
 
         $amount = (string) $payment->getAmount();
         $currency = (string) $payment->getCurrency();
-        $reference = (string) $payment->getReference();
+        $paymentReference = (string) $payment->getReference();
+        $ticketRef = (string) ($payment->getTicket()?->getUniqueReference() ?: $payment->getTicket()?->getId() ?: $paymentReference);
 
         $form = $this->gateway->buildCardPaymentForm(
             paymentId: (string) $payment->getId(),
-            reference: $reference,
+            paymentReference: $paymentReference,
+            ticketRef: $ticketRef,
             amount: $amount,
             currency: $currency,
         );

@@ -319,7 +319,7 @@ class FlexPayGateway implements PaymentGatewayInterface
         );
     }
 
-    public function buildCardPaymentForm(string $paymentId, string $reference, string $amount, string $currency): array
+    public function buildCardPaymentForm(string $paymentId, string $paymentReference, string $ticketRef, string $amount, string $currency): array
     {
         $token = \trim($this->token);
         $token = \trim($token, "\"'`");
@@ -328,9 +328,28 @@ class FlexPayGateway implements PaymentGatewayInterface
 
         $cardPayUrl = $this->normalizeUrl($this->cardPayUrl);
         $callbackUrl = $this->normalizeUrl($this->callbackUrl);
-        $approveUrl = $this->normalizeUrl($this->cardApproveUrl);
-        $cancelUrl = $this->normalizeUrl($this->cardCancelUrl);
-        $declineUrl = $this->normalizeUrl($this->cardDeclineUrl);
+
+        $approveUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardApproveUrl),
+            [
+                'ref' => $ticketRef,
+                'reason' => '',
+            ]
+        );
+        $cancelUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardCancelUrl),
+            [
+                'ref' => $ticketRef,
+                'reason' => '',
+            ]
+        );
+        $declineUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardDeclineUrl),
+            [
+                'ref' => $ticketRef,
+                'reason' => '',
+            ]
+        );
 
         $cardReference = \substr('OKP-' . $paymentId, 0, 25);
 
@@ -342,7 +361,9 @@ class FlexPayGateway implements PaymentGatewayInterface
                 'reference' => $cardReference,
                 'amount' => $amount,
                 'currency' => $currency,
-                'description' => 'Payment ' . $reference,
+                'description' => 'Payment ' . $paymentReference,
+                'paymentWay' => 'card',
+                'type' => 'card',
                 'callback_url' => $callbackUrl,
                 'approve_url' => $approveUrl,
                 'cancel_url' => $cancelUrl,
@@ -466,6 +487,10 @@ class FlexPayGateway implements PaymentGatewayInterface
             return $url;
         }
 
+        if (\str_contains($url, '{') || \str_contains($url, '}')) {
+            return $url;
+        }
+
         if (false === \filter_var($url, \FILTER_VALIDATE_URL)) {
             $this->logger->error('flexpay.url.invalid', [
                 'url' => $url,
@@ -474,6 +499,20 @@ class FlexPayGateway implements PaymentGatewayInterface
         }
 
         return $url;
+    }
+
+    private function expandUrlTemplate(string $url, array $vars): string
+    {
+        if ('' === $url) {
+            return $url;
+        }
+
+        $expanded = $url;
+        foreach ($vars as $k => $v) {
+            $expanded = \str_replace('{' . (string) $k . '}', \rawurlencode((string) $v), $expanded);
+        }
+
+        return $expanded;
     }
 
     public function checkStatus(string $transactionId): GatewayResponse

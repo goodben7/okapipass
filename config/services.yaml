@@ -11,9 +11,9 @@ parameters:
     flexpay_payment_url_default: 'https://backend.flexpay.cd/api/rest/v1/paymentService'
     flexpay_check_status_url_default: 'https://apicheck.flexpaie.com/api/rest/v1/check/%s'
     flexpay_card_pay_url_default: 'https://cardpayment.flexpay.cd/v2/pay'
-    flexpay_card_approve_url_default: 'https://okapi-pass-v2.vercel.app'
-    flexpay_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app'
-    flexpay_card_decline_url_default: 'https://okapi-pass-v2.vercel.app'
+    flexpay_card_approve_url_default: 'https://okapi-pass-v2.vercel.app/payment/success?ref={ref}'
+    flexpay_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app/payment/cancelled?ref={ref}'
+    flexpay_card_decline_url_default: 'https://okapi-pass-v2.vercel.app/payment/failed?ref={ref}&reason={reason}'
 
 services:
     # default configuration for services in *this* file
