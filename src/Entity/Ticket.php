@@ -149,6 +149,9 @@ class Ticket implements RessourceInterface
     #[Groups(['ticket:get'])]
     private ?\DateTimeImmutable $validatedAt = null;
 
+    #[Groups(['ticket:get'])]
+    private ?string $formUrl = null;
+
     public static function getStatusesAsList(): array
     {
         return [
@@ -217,6 +220,18 @@ class Ticket implements RessourceInterface
     public function setPaymentStatus(string $paymentStatus): static
     {
         $this->paymentStatus = $paymentStatus;
+
+        return $this;
+    }
+
+    public function getFormUrl(): ?string
+    {
+        return $this->formUrl;
+    }
+
+    public function setFormUrl(?string $formUrl): static
+    {
+        $this->formUrl = $formUrl;
 
         return $this;
     }

@@ -70,17 +70,17 @@ class GoPass implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'GP_ID', length: 16)]
-    #[Groups(['gopass:get'])]
+    #[Groups(['gopass:get', 'ticket:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'GP_CODE', length: 50)]
     #[Assert\NotBlank]
-    #[Groups(['gopass:get', 'gopass:post', 'gopass:patch'])]
+    #[Groups(['gopass:get', 'gopass:post', 'gopass:patch', 'ticket:get'])]
     private ?string $code = null;
 
     #[ORM\Column(name: 'GP_LABEL', length: 120)]
     #[Assert\NotBlank]
-    #[Groups(['gopass:get', 'gopass:post', 'gopass:patch'])]
+    #[Groups(['gopass:get', 'gopass:post', 'gopass:patch', 'ticket:get'])]
     private ?string $label = null;
 
     #[ORM\Column(name: 'GP_TRANSPORT_TYPE', length: 10)]

@@ -58,11 +58,11 @@ class Checkpoint implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'CP_ID', length: 16)]
-    #[Groups(['checkpoint:get'])]
+    #[Groups(['checkpoint:get', 'ticket:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'CP_LABEL', length: 120)]
-    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch'])]
+    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch', 'ticket:get'])]
     private ?string $label = null;
 
     #[ORM\Column(name: 'CP_ACTIVE')]

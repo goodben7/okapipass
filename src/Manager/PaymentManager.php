@@ -76,6 +76,10 @@ class PaymentManager
         $payload = \json_decode($rawBody, true);
 
         if (!$payload) {
+            $payload = $request->request->all();
+        }
+
+        if (!$payload) {
             $this->logger->warning('payment.flexpay.webhook.invalid_payload', [
                 'contentType' => $request->headers->get('content-type'),
                 'bodySize' => \strlen($rawBody),
@@ -93,25 +97,48 @@ class PaymentManager
         $transactionId = $payload['transactionId']
             ?? $payload['orderNumber']
             ?? $payload['order_number']
-            ?? $payload['reference']
+            ?? ($payload['transaction']['orderNumber'] ?? null)
+            ?? ($payload['transaction']['order_number'] ?? null);
+
+        $reference = $payload['reference']
             ?? ($payload['transaction']['reference'] ?? null);
 
-        if (null === $transactionId || '' === \trim((string) $transactionId)) {
-            $this->logger->warning('payment.flexpay.webhook.missing_transaction_id', [
-                'payloadKeys' => \array_keys($payload),
+        $payment = null;
+
+        if (null !== $transactionId && '' !== \trim((string) $transactionId)) {
+            /** @var Payment|null $payment */
+            $payment = $this->paymentRepository->findOneBy(['providerTransactionId' => (string) $transactionId]);
+        }
+
+        if (!$payment && null !== $reference && '' !== \trim((string) $reference)) {
+            $refString = (string) $reference;
+            $paymentId = null;
+
+            if (\str_starts_with($refString, 'OKP-')) {
+                $paymentId = \substr($refString, 4);
+            }
+
+            if (null !== $paymentId && '' !== \trim($paymentId)) {
+                /** @var Payment|null $payment */
+                $payment = $this->paymentRepository->find($paymentId);
+            }
+
+            if (!$payment) {
+                /** @var Payment|null $payment */
+                $payment = $this->paymentRepository->findOneBy(['reference' => $refString]);
+            }
+        }
+
+        if (!$payment) {
+            $this->logger->warning('payment.flexpay.webhook.payment_not_found', [
+                'transactionId' => $transactionId,
+                'reference' => $reference,
             ]);
             return null;
         }
 
-    
-        /** @var Payment $payment */
-        $payment = $this->paymentRepository->findOneBy(['providerTransactionId' => $transactionId]);
-
-        if (!$payment) {
-            $this->logger->warning('payment.flexpay.webhook.payment_not_found', [
-                'transactionId' => (string) $transactionId,
-            ]);
-            return null;
+        if (null !== $transactionId && '' !== \trim((string) $transactionId) && null === $payment->getProviderTransactionId()) {
+            $payment->setProviderTransactionId((string) $transactionId);
         }
 
         $payment->setProviderWebhook($payload);
@@ -127,14 +154,15 @@ class PaymentManager
 
         $this->logger->info('payment.flexpay.webhook.received', [
             'paymentId' => $payment->getId(),
-            'transactionId' => (string) $transactionId,
+            'transactionId' => $transactionId,
+            'reference' => $reference,
             'incomingStatus' => $incomingStatus,
         ]);
 
         if (Payment::STATUS_PAID === $payment->getStatus()) {
             $this->logger->info('payment.flexpay.webhook.ignored_already_paid', [
                 'paymentId' => $payment->getId(),
-                'transactionId' => (string) $transactionId,
+                'transactionId' => $transactionId,
             ]);
             $this->em->flush();
 
@@ -155,13 +183,13 @@ class PaymentManager
 
             $this->logger->info('payment.flexpay.webhook.marked_failed_from_payload', [
                 'paymentId' => $payment->getId(),
-                'transactionId' => (string) $transactionId,
+                'transactionId' => $transactionId,
                 'incomingStatus' => $incomingStatus,
                 'ticketId' => $payment->getTicket()?->getId(),
             ]);
         }
 
-        if ($shouldCheck && Payment::STATUS_PAID !== $payment->getStatus()) {
+        if ($shouldCheck && Payment::STATUS_PAID !== $payment->getStatus() && null !== $transactionId && '' !== \trim((string) $transactionId)) {
             try {
                 $check = $this->gateway->checkStatus((string) $transactionId);
                 $providerWebhook = $payment->getProviderWebhook() ?? [];

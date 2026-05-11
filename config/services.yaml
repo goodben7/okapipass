@@ -8,6 +8,12 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     flexpay_callback_url_default: 'https://api.okapipass.pteron.pro/api/payments/webhook/flexpay'
+    flexpay_payment_url_default: 'https://backend.flexpay.cd/api/rest/v1/paymentService'
+    flexpay_check_status_url_default: 'https://apicheck.flexpaie.com/api/rest/v1/check/%s'
+    flexpay_card_pay_url_default: 'https://cardpayment.flexpay.cd/v2/pay'
+    flexpay_card_approve_url_default: 'https://okapi-pass-v2.vercel.app'
+    flexpay_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app'
+    flexpay_card_decline_url_default: 'https://okapi-pass-v2.vercel.app'
 
 services:
     # default configuration for services in *this* file
@@ -27,3 +33,9 @@ services:
             $merchantId: '%env(FLEXPAY_MERCHANT_ID)%'
             $token: '%env(FLEXPAY_TOKEN)%'
             $callbackUrl: '%env(default:flexpay_callback_url_default:FLEXPAY_CALLBACK_URL)%'
+            $paymentUrl: '%env(default:flexpay_payment_url_default:FLEXPAY_PAYMENT_URL)%'
+            $cardPayUrl: '%env(default:flexpay_card_pay_url_default:FLEXPAY_CARD_PAY_URL)%'
+            $checkStatusUrl: '%env(default:flexpay_check_status_url_default:FLEXPAY_CHECK_STATUS_URL)%'
+            $cardApproveUrl: '%env(default:flexpay_card_approve_url_default:FLEXPAY_CARD_APPROVE_URL)%'
+            $cardCancelUrl: '%env(default:flexpay_card_cancel_url_default:FLEXPAY_CARD_CANCEL_URL)%'
+            $cardDeclineUrl: '%env(default:flexpay_card_decline_url_default:FLEXPAY_CARD_DECLINE_URL)%'

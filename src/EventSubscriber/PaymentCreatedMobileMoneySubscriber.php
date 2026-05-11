@@ -78,6 +78,9 @@ class PaymentCreatedMobileMoneySubscriber implements EventSubscriberInterface
                 'ticketUniqueReference' => $payment->getTicket()?->getUniqueReference(),
             ]);
         } else {
+            $payment->setProvider(Payment::PROVIDER_FLEXPAY);
+            $payment->setProviderTransactionId($response->transactionId);
+            $payment->setProviderResponse($response->raw);
             $payment->setStatus(Payment::STATUS_FAILED);
 
             $ticket = $payment->getTicket();
