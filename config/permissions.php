@@ -67,4 +67,9 @@ return static function (): iterable {
     yield Permission::new('ROLE_DOC_DETAILS', "Consulter les détails d'un document");
     yield Permission::new('ROLE_DOC_DELETE', "Supprimer un document");
 
+    yield Permission::new('ROLE_PROVINCE_CREATE', "Créer une province");
+    yield Permission::new('ROLE_PROVINCE_LIST', "Consulter la liste des provinces");
+    yield Permission::new('ROLE_PROVINCE_UPDATE', "Modifier une province");
+    yield Permission::new('ROLE_PROVINCE_DETAILS', "Consulter les détails d'une province");
+
 };
