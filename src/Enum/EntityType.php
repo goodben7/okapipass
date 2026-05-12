@@ -17,6 +17,7 @@ class EntityType
     public const string HOTEL = 'HOTEL';
     public const string TOURIST_SITE = 'TOURIST_SITE';
     public const string PROVINCE = 'PROVINCE';
+    public const string NOTIFICATION = 'NOTIFICATION';
 
     public static function getAll(): array
     {
@@ -40,6 +41,7 @@ class EntityType
                 self::HOTEL,
                 self::TOURIST_SITE,
                 self::PROVINCE,
+                self::NOTIFICATION,
             ],  
         ];
     }

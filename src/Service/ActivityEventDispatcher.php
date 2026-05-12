@@ -48,7 +48,7 @@ class ActivityEventDispatcher
                 $user->getId(),
                 new \DateTimeImmutable(),
                 $action,
-                null === $ressource ? $ressourceClass : get_class($ressource),
+                null === $ressource ? $ressourceClass : \get_class($ressource),
                 $user,
                 $ressource?->getId(), 
                 $activityDescription,

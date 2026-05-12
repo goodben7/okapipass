@@ -26,6 +26,24 @@ services:
     App\:
         resource: '../src/'
 
+    App\Service\NotificationService:
+        arguments:
+            $em: '@doctrine.orm.entity_manager'
+            $senders: !tagged_iterator 'app.notification_sender'
+
+    App\Service\MailNotificationSender:
+        arguments:  
+            $mailerSender: '%env(MAILER_SENDER)%'
+            $mailerSenderName: '%env(MAILER_SENDER_NAME)%'
+        tags: [ 'app.notification_sender' ]
+
+    App\Service\WhatsappNotificationSender:
+        arguments:
+            $whatsappApiKey: '%env(ULTRAMSG_API_KEY)%'
+            $whatsappInstanceId: '%env(ULTRAMSG_INSTANCE_ID)%'
+        tags: [ 'app.notification_sender' ]
+
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
     App\Service\FlexPayGateway:
