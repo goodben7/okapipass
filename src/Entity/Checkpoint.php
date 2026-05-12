@@ -48,6 +48,8 @@ use Symfony\Component\Serializer\Attribute\Groups;
     'id' => 'exact',
     'label' => 'ipartial',
     'active' => 'exact',
+    'province.id' => 'exact',
+    'province.code' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['label'])]
 class Checkpoint implements RessourceInterface
@@ -58,24 +60,29 @@ class Checkpoint implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'CP_ID', length: 16)]
-    #[Groups(['checkpoint:get', 'ticket:get'])]
+    #[Groups(['checkpoint:get', 'province:checkpoints', 'ticket:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'CP_LABEL', length: 120)]
-    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch', 'ticket:get'])]
+    #[Groups(['checkpoint:get', 'province:checkpoints', 'checkpoint:post', 'checkpoint:patch', 'ticket:get'])]
     private ?string $label = null;
 
     #[ORM\Column(name: 'CP_ACTIVE')]
-    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch'])]
+    #[Groups(['checkpoint:get', 'province:checkpoints', 'checkpoint:post', 'checkpoint:patch'])]
     private ?bool $active = null;
 
     #[ORM\Column(name: 'CP_LATITUDE', nullable: true)]
-    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch'])]
+    #[Groups(['checkpoint:get', 'province:checkpoints', 'checkpoint:post', 'checkpoint:patch'])]
     private ?float $latitude = null;
 
     #[ORM\Column(name: 'CP_LONGITUDE', nullable: true)]
-    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch'])]
+    #[Groups(['checkpoint:get', 'province:checkpoints', 'checkpoint:post', 'checkpoint:patch'])]
     private ?float $longitude = null;
+
+    #[ORM\ManyToOne(inversedBy: 'checkpoints')]
+    #[ORM\JoinColumn(name: 'CP_PROVINCE', referencedColumnName: 'PV_ID', nullable: true)]
+    #[Groups(['checkpoint:get', 'checkpoint:post', 'checkpoint:patch'])]
+    private ?Province $province = null;
 
     public function getId(): ?string
     {
@@ -126,6 +133,18 @@ class Checkpoint implements RessourceInterface
     public function setLongitude(?float $longitude): static
     {
         $this->longitude = $longitude;
+
+        return $this;
+    }
+
+    public function getProvince(): ?Province
+    {
+        return $this->province;
+    }
+
+    public function setProvince(?Province $province): static
+    {
+        $this->province = $province;
 
         return $this;
     }

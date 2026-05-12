@@ -17,6 +17,8 @@ use ApiPlatform\Metadata\Post;
 use App\Doctrine\IdGenerator;
 use App\Model\RessourceInterface;
 use App\Repository\ProvinceRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 
@@ -25,7 +27,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
 #[ORM\UniqueConstraint(name: 'UNIQ_PROVINCE_CODE', fields: ['code'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
-    normalizationContext: ['groups' => 'province:get'],
+    normalizationContext: ['groups' => ['province:get', 'province:checkpoints']],
     operations: [
         new Get(
             security: 'is_granted("ROLE_PROVINCE_DETAILS")',
@@ -63,11 +65,11 @@ class Province implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'PV_ID', length: 16)]
-    #[Groups(['province:get'])]
+    #[Groups(['province:get', 'checkpoint:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'PV_LABEL', length: 120)]
-    #[Groups(['province:get', 'province:post', 'province:patch'])]
+    #[Groups(['province:get', 'province:post', 'province:patch', 'checkpoint:get'])]
     private ?string $label = null;
 
     #[ORM\Column(name: 'PV_CODE', length: 15)]
@@ -85,6 +87,15 @@ class Province implements RessourceInterface
     #[ORM\Column(name: 'PV_UPDATED_AT', nullable: true)]
     #[Groups(['province:get'])]
     private ?\DateTimeImmutable $updatedAt = null;
+
+    #[ORM\OneToMany(mappedBy: 'province', targetEntity: Checkpoint::class)]
+    #[Groups(['province:get'])]
+    private Collection $checkpoints;
+
+    public function __construct()
+    {
+        $this->checkpoints = new ArrayCollection();
+    }
 
     public function getId(): ?string
     {
@@ -151,6 +162,11 @@ class Province implements RessourceInterface
         return $this;
     }
 
+    public function getCheckpoints(): Collection
+    {
+        return $this->checkpoints;
+    }
+
     #[ORM\PreUpdate]
     public function updateUpdatedAt(): void
     {
@@ -168,4 +184,3 @@ class Province implements RessourceInterface
         return $this->label ?? sprintf("Province %s", $this->id);
     }
 }
-
