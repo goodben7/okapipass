@@ -5,12 +5,15 @@ namespace App\Manager;
 use App\Entity\Payment;
 use App\Entity\Ticket;
 use App\Entity\User;
+use App\Entity\Notification;
+use App\Enum\NotificationType;
 use App\Message\Query\GetUserDetails;
 use App\Message\Query\QueryBusInterface;
 use App\Model\PaymentGatewayInterface;
 use App\Model\NewPaymentModel;
 use App\Repository\PaymentRepository;
 use App\Service\ActivityEventDispatcher;
+use App\Service\NotificationService;
 use App\Service\TicketUniqueReferenceGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -29,6 +32,7 @@ class PaymentManager
         private PaymentRepository $paymentRepository,
         private TicketUniqueReferenceGenerator $referenceGenerator,
         private PaymentGatewayInterface $gateway,
+        private NotificationService $notifications,
         private LoggerInterface $logger,
     ) {
     }
@@ -209,6 +213,8 @@ class PaymentManager
 
                 if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
                     $now = new \DateTimeImmutable();
+                    $ticket = $payment->getTicket();
+                    $ticketWasPaid = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
 
                     if (Payment::STATUS_PAID !== $payment->getStatus()) {
                         $payment->setStatus(Payment::STATUS_PAID);
@@ -217,8 +223,6 @@ class PaymentManager
                     if (null === $payment->getPaidAt()) {
                         $payment->setPaidAt($now);
                     }
-
-                    $ticket = $payment->getTicket();
 
                     if ($ticket instanceof Ticket) {
                         if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
@@ -236,6 +240,10 @@ class PaymentManager
                         if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
                             $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
                         }
+                    }
+
+                    if ($ticket instanceof Ticket && !$ticketWasPaid) {
+                        $this->notifyWhatsappPaid($payment, $ticket);
                     }
 
                     $this->logger->info('payment.flexpay.webhook.marked_paid', [
@@ -287,6 +295,75 @@ class PaymentManager
         ]);
 
         return $payment;
+    }
+
+    private function notifyWhatsappPaid(Payment $payment, Ticket $ticket): void
+    {
+        $phone = (string) ($ticket->getPhone() ?? '');
+        $phone = trim($phone);
+        if ($phone === '') {
+            return;
+        }
+
+        $webhook = $payment->getProviderWebhook();
+        $webhook = is_array($webhook) ? $webhook : [];
+        $meta = $webhook['_okapi'] ?? null;
+        $meta = is_array($meta) ? $meta : [];
+        if (($meta['whatsapp_paid_notified'] ?? false) === true) {
+            return;
+        }
+
+        $goPass = $ticket->getGoPass();
+        $departure = $ticket->getDeparture();
+        $arrival = $ticket->getArrival();
+
+        $amount = (string) ($payment->getAmount() ?? '');
+        $currency = (string) ($payment->getCurrency() ?? '');
+
+        $ref = $ticket->getUniqueReference() ?? $ticket->getId();
+        $ref = (string) ($ref ?? '');
+
+        $lines = [];
+        $lines[] = 'Paiement confirmé - OkapiPass';
+        if ($ref !== '') {
+            $lines[] = "Pass: {$ref}";
+        }
+        if (null !== $ticket->getDisplayName() && '' !== trim((string) $ticket->getDisplayName())) {
+            $lines[] = 'Nom: ' . trim((string) $ticket->getDisplayName());
+        }
+        if ($goPass instanceof \App\Entity\GoPass) {
+            $lines[] = 'GoPass: ' . (string) $goPass->getLabel();
+        }
+        if ($departure instanceof \App\Entity\Checkpoint && $arrival instanceof \App\Entity\Checkpoint) {
+            $lines[] = 'Trajet: ' . (string) $departure->getLabel() . ' → ' . (string) $arrival->getLabel();
+        }
+        if ($amount !== '' && $currency !== '') {
+            $lines[] = "Montant: {$amount} {$currency}";
+        }
+        $lines[] = 'Statut: PAYÉ';
+        $lines[] = "\nLien de votre pass : https://okapi-pass-v2.vercel.app/payment/success?ref=" . $ref;
+
+        $notification = new Notification();
+        $notification->setTarget($phone);
+        $notification->setTargetType(Notification::TARGET_TYPE_WHATSAPP);
+        $notification->setSentVia(Notification::SENT_VIA_WHATSAPP);
+        $notification->setType(NotificationType::PAYMENT_PAID);
+        $notification->setTitle('OkapiPass');
+        $notification->setBody(implode("\n", $lines));
+
+        try {
+            $this->notifications->send($notification);
+            $meta['whatsapp_paid_notified'] = true;
+            $webhook['_okapi'] = $meta;
+            $payment->setProviderWebhook($webhook);
+        } catch (\Throwable $e) {
+            $this->logger->error('payment.whatsapp_paid_notification.failed', [
+                'paymentId' => $payment->getId(),
+                'ticketId' => $ticket->getId(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function sanitizeWebhookPayload(mixed $value): mixed

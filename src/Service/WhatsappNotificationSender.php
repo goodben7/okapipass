@@ -98,9 +98,6 @@ readonly class WhatsappNotificationSender implements NotificationSenderInterface
         }
 
         $details = [];
-        if ($type !== '') {
-            $details['Type'] = $type;
-        }
         foreach ($context as $key => $value) {
             if ($key === 'action_url' || $key === 'action_text') {
                 continue;
