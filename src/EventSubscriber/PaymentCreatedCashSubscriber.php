@@ -5,6 +5,7 @@ namespace App\EventSubscriber;
 use App\Entity\Payment;
 use App\Entity\Ticket;
 use App\Event\ActivityEvent;
+use App\Manager\PaymentManager;
 use App\Service\TicketUniqueReferenceGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -14,6 +15,7 @@ class PaymentCreatedCashSubscriber implements EventSubscriberInterface
     public function __construct(
         private EntityManagerInterface $em,
         private TicketUniqueReferenceGenerator $referenceGenerator,
+        private PaymentManager $paymentManager,
     )
     {
     }
@@ -70,5 +72,7 @@ class PaymentCreatedCashSubscriber implements EventSubscriberInterface
         }
 
         $this->em->flush();
+
+        $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
     }
 }

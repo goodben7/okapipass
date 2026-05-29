@@ -61,7 +61,7 @@ class TicketVerification implements RessourceInterface
     #[Groups(['ticket_verification:get', 'ticket:get'])]
     private ?string $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'verifications')]
+    #[ORM\ManyToOne]
     #[ORM\JoinColumn(name: 'TV_TICKET', referencedColumnName: 'TI_ID', nullable: false)]
     #[Assert\NotNull]
     #[Groups(['ticket_verification:get'])]

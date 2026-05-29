@@ -297,9 +297,9 @@ class PaymentManager
         return $payment;
     }
 
-    private function notifyWhatsappPaid(Payment $payment, Ticket $ticket): void
+    public function notifyWhatsappPaid(Payment $payment, Ticket $ticket, ?string $overridePhone = null): void
     {
-        $phone = (string) ($ticket->getPhone() ?? '');
+        $phone = (string) ($overridePhone ?? $ticket->getPhone() ?? '');
         $phone = trim($phone);
         if ($phone === '') {
             return;
@@ -358,6 +358,76 @@ class PaymentManager
             $payment->setProviderWebhook($webhook);
         } catch (\Throwable $e) {
             $this->logger->error('payment.whatsapp_paid_notification.failed', [
+                'paymentId' => $payment->getId(),
+                'ticketId' => $ticket->getId(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function notifyWhatsappFailed(Payment $payment, Ticket $ticket, ?string $overridePhone = null): void
+    {
+        $phone = (string) ($overridePhone ?? $ticket->getPhone() ?? '');
+        $phone = trim($phone);
+        if ($phone === '') {
+            return;
+        }
+
+        $webhook = $payment->getProviderWebhook();
+        $webhook = is_array($webhook) ? $webhook : [];
+        $meta = $webhook['_okapi'] ?? null;
+        $meta = is_array($meta) ? $meta : [];
+        if (($meta['whatsapp_failed_notified'] ?? false) === true) {
+            return;
+        }
+
+        $goPass = $ticket->getGoPass();
+        $departure = $ticket->getDeparture();
+        $arrival = $ticket->getArrival();
+
+        $amount = (string) ($payment->getAmount() ?? '');
+        $currency = (string) ($payment->getCurrency() ?? '');
+
+        $ref = $ticket->getUniqueReference() ?? $ticket->getId();
+        $ref = (string) ($ref ?? '');
+        $displayName = trim((string) ($ticket->getDisplayName() ?? ''));
+
+        $lines = [];
+        $lines[] = 'Paiement échoué - OkapiPass';
+        if ($ref !== '') {
+            $lines[] = "Pass: {$ref}";
+        }
+        if ($displayName !== '') {
+            $lines[] = "Nom: {$displayName}";
+        }
+        if ($goPass instanceof \App\Entity\GoPass) {
+            $lines[] = "GoPass: {$goPass->getLabel()}";
+        }
+        if ($departure instanceof \App\Entity\Checkpoint && $arrival instanceof \App\Entity\Checkpoint) {
+            $lines[] = "Trajet: {$departure->getLabel()} → {$arrival->getLabel()}";
+        }
+        if ($amount !== '' && $currency !== '') {
+            $lines[] = "Montant: {$amount} {$currency}";
+        }
+        $lines[] = 'Statut: ÉCHOUÉ';
+        $lines[] = 'Tape MENU pour recommencer.';
+
+        $notification = new Notification();
+        $notification->setTarget($phone);
+        $notification->setTargetType(Notification::TARGET_TYPE_WHATSAPP);
+        $notification->setSentVia(Notification::SENT_VIA_WHATSAPP);
+        $notification->setType(NotificationType::PAYMENT_FAILED);
+        $notification->setTitle('OkapiPass');
+        $notification->setBody(implode("\n", $lines));
+
+        try {
+            $this->notifications->send($notification);
+            $meta['whatsapp_failed_notified'] = true;
+            $webhook['_okapi'] = $meta;
+            $payment->setProviderWebhook($webhook);
+        } catch (\Throwable $e) {
+            $this->logger->error('payment.whatsapp_failed_notification.failed', [
                 'paymentId' => $payment->getId(),
                 'ticketId' => $ticket->getId(),
                 'exception' => $e::class,
