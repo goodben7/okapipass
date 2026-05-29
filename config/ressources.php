@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-use App\Entity\Checkpoint;
 use App\Entity\Agency;
+use App\Entity\Checkpoint;
 use App\Entity\GoPass;
+use App\Entity\Hotel;
 use App\Entity\Payment;
 use App\Entity\Profile;
 use App\Entity\Ticket;
+use App\Entity\TicketVerification;
+use App\Entity\TouristSite;
 use App\Entity\Trip;
 use App\Entity\User;
-use App\Entity\Hotel;
-use App\Entity\TouristSite;
 use App\Model\Ressource;
 
 return static function (): iterable {
@@ -26,5 +27,6 @@ return static function (): iterable {
     yield Ressource::new("trip", Trip::class, "TR", true);
     yield Ressource::new("hotel", Hotel::class, "HO", true);
     yield Ressource::new("tourist_site", TouristSite::class, "TS", true);
+    yield Ressource::new("ticket_verification", TicketVerification::class, "TV", true);
 
 };

@@ -18,6 +18,8 @@ use App\Model\RessourceInterface;
 use App\Repository\TicketRepository;
 use App\State\CreateTicketProcessor;
 use App\State\TicketFlexpayCheckPaymentStatusProcessor;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -63,6 +65,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'issuedBy.id' => 'exact',
     'identifier' => 'exact',
     'uniqueReference' => 'exact',
+    'verifications.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['issuedAt', 'validatedAt'])]
 #[ApiFilter(DateFilter::class, properties: ['issuedAt', 'validatedAt'])]
@@ -72,6 +75,7 @@ class Ticket implements RessourceInterface
 
     public const string STATUS_ISSUED = 'ISSUED';
     public const string STATUS_VALIDATED = 'VALIDATED';
+    public const string STATUS_ARRIVED = 'ARRIVED';
     public const string STATUS_CANCELLED = 'CANCELLED';
 
     public const string PAYMENT_STATUS_PENDING = 'PENDING';
@@ -152,11 +156,24 @@ class Ticket implements RessourceInterface
     #[Groups(['ticket:get'])]
     private ?string $formUrl = null;
 
+    /**
+     * @var Collection<int, TicketVerification>
+     */
+    #[ORM\OneToMany(mappedBy: 'ticket', targetEntity: TicketVerification::class, orphanRemoval: true)]
+    #[Groups(['ticket:get'])]
+    private Collection $verifications;
+
+    public function __construct()
+    {
+        $this->verifications = new ArrayCollection();
+    }
+
     public static function getStatusesAsList(): array
     {
         return [
             self::STATUS_ISSUED,
             self::STATUS_VALIDATED,
+            self::STATUS_ARRIVED,
             self::STATUS_CANCELLED,
         ];
     }
@@ -350,6 +367,36 @@ class Ticket implements RessourceInterface
     public function setUniqueReference(string|null $uniqueReference): static
     {
         $this->uniqueReference = $uniqueReference;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, TicketVerification>
+     */
+    public function getVerifications(): Collection
+    {
+        return $this->verifications;
+    }
+
+    public function addVerification(TicketVerification $verification): static
+    {
+        if (!$this->verifications->contains($verification)) {
+            $this->verifications->add($verification);
+            $verification->setTicket($this);
+        }
+
+        return $this;
+    }
+
+    public function removeVerification(TicketVerification $verification): static
+    {
+        if ($this->verifications->removeElement($verification)) {
+            // set the owning side to null (unless already changed)
+            if ($verification->getTicket() === $this) {
+                $verification->setTicket(null);
+            }
+        }
 
         return $this;
     }

@@ -72,4 +72,8 @@ return static function (): iterable {
     yield Permission::new('ROLE_PROVINCE_UPDATE', "Modifier une province");
     yield Permission::new('ROLE_PROVINCE_DETAILS', "Consulter les détails d'une province");
 
+    yield Permission::new('ROLE_TICKET_VERIFIER_CREATE', "Créer une vérification de ticket");
+    yield Permission::new('ROLE_TICKET_VERIFIER_LIST', "Consulter la liste des vérifications de tickets");
+    yield Permission::new('ROLE_TICKET_VERIFIER_DETAILS', "Consulter les détails d'une vérification de ticket");
+
 };

@@ -18,6 +18,8 @@ class EntityType
     public const string TOURIST_SITE = 'TOURIST_SITE';
     public const string PROVINCE = 'PROVINCE';
     public const string NOTIFICATION = 'NOTIFICATION';
+    public const string TICKET_VERIFICATION = 'TICKET_VERIFICATION';
+
 
     public static function getAll(): array
     {
@@ -42,6 +44,7 @@ class EntityType
                 self::TOURIST_SITE,
                 self::PROVINCE,
                 self::NOTIFICATION,
+                self::TICKET_VERIFICATION,
             ],  
         ];
     }
