@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            margin: 0;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #2563eb; /* Fallback color */
+        }
+        .container {
+            width: 450px;
+            height: 650px;
+            background-color: #2563eb;
+            position: relative;
+            color: #ffffff;
+        }
+        
+        /* Dompdf ne supporte pas bien les dégradés complexes, on utilise une couleur solide ou une image de fond si nécessaire */
+        /* Ici on va rester sur le bleu officiel pour assurer la lisibilité */
+
+        .top-border {
+            width: 100%;
+            height: 6px;
+        }
+        .border-item {
+            float: left;
+            height: 6px;
+            width: 33.33%;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+        .org-name {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+        }
+        .brand {
+            font-size: 26px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        .brand-yellow {
+            color: #fbbf24;
+        }
+
+        /* QR Code */
+        .qr-section {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .qr-box {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 25px;
+            display: inline-block;
+        }
+        .qr-image {
+            width: 180px;
+            height: 180px;
+        }
+
+        /* Reference */
+        .ref-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .ref-badge {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 25px;
+            border-radius: 15px;
+            color: #fbbf24;
+            font-size: 20px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        /* Info Grid avec Table pour Dompdf */
+        .info-table {
+            width: 100%;
+            margin-top: 30px;
+            border-collapse: collapse;
+        }
+        .info-table td {
+            width: 50%;
+            padding-bottom: 20px;
+            vertical-align: top;
+        }
+        .label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 5px;
+        }
+        .value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        .value-yellow {
+            color: #fbbf24;
+        }
+        .sub-value {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Footer */
+        .footer {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            right: 30px;
+        }
+        .status-badge {
+            float: right;
+            border: 1px solid #10b981;
+            padding: 5px 12px;
+            border-radius: 15px;
+            color: #10b981;
+            font-size: 11px;
+            font-weight: bold;
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+        .date-table {
+            width: 70%;
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-border">
+            <div class="border-item" style="background-color: #2563eb;"></div>
+            <div class="border-item" style="background-color: #fbbf24;"></div>
+            <div class="border-item" style="background-color: #ef4444;"></div>
+        </div>
+
+        <div class="content">
+            <div class="header">
+                <div class="org-name">Office National du Tourisme</div>
+                <div class="brand">Okapi<span class="brand-yellow">Pass</span></div>
+            </div>
+
+            <div class="qr-section">
+                <div class="qr-box">
+                    <img src="{{ qrCode }}" class="qr-image">
+                </div>
+            </div>
+
+            <div class="ref-container">
+                <div class="ref-badge">
+                    # {{ ticket.uniqueReference|default(ticket.id)|upper }}
+                </div>
+            </div>
+
+            <table class="info-table">
+                <tr>
+                    <td>
+                        <div class="label">Titulaire</div>
+                        <div class="value">{{ ticket.displayName|default('N/A') }}</div>
+                    </td>
+                    <td>
+                        <div class="label">Type</div>
+                        <div class="value value-yellow">{{ ticket.goPass.label|default('Routier') }}</div>
+                        <div class="sub-value">{{ ticket.goPass.label|default('Routier') }}</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="label">Départ</div>
+                        <div class="value">{{ ticket.departure.label|default('N/A') }}</div>
+                    </td>
+                    <td>
+                        <div class="label">Arrivée</div>
+                        <div class="value">{{ ticket.arrival.label|default('N/A') }}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="footer">
+                <div class="status-badge">
+                    <span style="font-size: 14px;">●</span> Valide
+                </div>
+                
+                <table class="date-table">
+                    <tr>
+                        <td>
+                            <div class="label">Émis le</div>
+                            <div class="value">{{ issuedAt|date('d/m/Y') }}</div>
+                        </td>
+                        <td>
+                            <div class="label">Expire le</div>
+                            <div class="value">{{ expiresAt|date('d/m/Y') }}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Contract\NotificationSenderInterface;
 use App\Entity\Notification;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 readonly class WhatsappNotificationSender implements NotificationSenderInterface
@@ -12,6 +13,7 @@ readonly class WhatsappNotificationSender implements NotificationSenderInterface
 
     public function __construct(
         private HttpClientInterface $client,
+        private LoggerInterface     $logger,
         private string              $whatsappApiKey,
         private string              $whatsappInstanceId
     )
@@ -20,28 +22,78 @@ readonly class WhatsappNotificationSender implements NotificationSenderInterface
 
     public function send(Notification $notification): void
     {
-        $endpoint = self::ULTRAMSG_API_URL . "/{$this->whatsappInstanceId}/messages/chat";
+        $context = $notification->getTemplateContext() ?? $notification->getData() ?? [];
+        $pdfUrl = $context['pdf_url'] ?? null;
+        
+        $this->logger->info('WhatsappNotificationSender: Starting send process', [
+            'has_pdf_url' => isset($pdfUrl),
+            'pdf_url' => $pdfUrl,
+            'context_keys' => array_keys($context)
+        ]);
 
+        $to = $this->formatPhoneNumber($notification->getTarget());
+        
+        // 1. Envoi du PDF en premier (si présent)
+        if (is_string($pdfUrl) && $pdfUrl !== '') {
+            $this->logger->info('WhatsappNotificationSender: PDF URL found, attempting to send...', ['url' => $pdfUrl]);
+            $this->sendDocument($to, $pdfUrl, 'Ticket-' . ($context['reference'] ?? 'Pass') . '.pdf');
+        } else {
+            $this->logger->warning('WhatsappNotificationSender: No PDF URL provided in notification context');
+        }
+
+        // 2. Envoi du message TEXTE
+        $endpoint = self::ULTRAMSG_API_URL . "/{$this->whatsappInstanceId}/messages/chat";
+        
         try {
             $response = $this->client->request('POST', $endpoint, [
+                'body' => [
+                    'token' => $this->whatsappApiKey,
+                    'to' => $to,
+                    'body' => $this->formatMessage($notification)
+                ],
                 'headers' => [
                     'Content-Type' => 'application/x-www-form-urlencoded',
                 ],
-                'body' => [
-                    'token' => $this->whatsappApiKey,
-                    'to' => $this->formatPhoneNumber($notification->getTarget()),
-                    'body' => $this->formatMessage($notification),
-                    'verify_peer' => false,
-                    'verify_host' => false
-                ]
             ]);
 
             if ($response->getStatusCode() !== 200) {
-                $content = $response->getContent(false);
-                throw new \RuntimeException('Failed to send Whatsapp message: ' . $content);
+                $this->logger->error('WhatsappNotificationSender: Text message failed', ['status' => $response->getStatusCode(), 'content' => $response->getContent(false)]);
             }
         } catch (\Exception $e) {
-            throw new \RuntimeException('Whatsapp service error: ' . $e->getMessage());
+            $this->logger->error('WhatsappNotificationSender: Text message exception', ['message' => $e->getMessage()]);
+        }
+    }
+
+    private function sendDocument(string $to, string $url, string $filename): void
+    {
+        $endpoint = self::ULTRAMSG_API_URL . "/{$this->whatsappInstanceId}/messages/document";
+        try {
+            $response = $this->client->request('POST', $endpoint, [
+                'body' => [
+                    'token' => $this->whatsappApiKey,
+                    'to' => $to,
+                    'filename' => $filename,
+                    'document' => $url,
+                ],
+                'headers' => [
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                ],
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                $this->logger->error('WhatsappNotificationSender: PDF send failed', [
+                    'status' => $response->getStatusCode(),
+                    'content' => $response->getContent(false),
+                    'url' => $url
+                ]);
+            } else {
+                $this->logger->info('WhatsappNotificationSender: PDF sent successfully', [
+                    'to' => $to,
+                    'response' => $response->toArray(false)
+                ]);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('WhatsappNotificationSender: PDF exception', ['message' => $e->getMessage()]);
         }
     }
     
@@ -99,7 +151,15 @@ readonly class WhatsappNotificationSender implements NotificationSenderInterface
 
         $details = [];
         foreach ($context as $key => $value) {
-            if ($key === 'action_url' || $key === 'action_text') {
+            // On masque les clés techniques pour ne pas polluer le message WhatsApp
+            if (in_array($key, [
+                'action_url', 
+                'action_text', 
+                'pdf_url', 
+                'reference', 
+                'whatsapp_paid_notified', 
+                'whatsapp_failed_notified'
+            ], true)) {
                 continue;
             }
             if (is_bool($value)) {

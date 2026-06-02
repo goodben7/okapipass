@@ -343,6 +343,16 @@ class PaymentManager
         $lines[] = 'Statut: PAYÉ';
         $lines[] = "\nLien de votre pass : https://okapi-pass-v2.vercel.app/payment/success?ref=" . $ref;
 
+        $request = $this->requestStack->getCurrentRequest();
+        // Si on est en local via LocalTunnel, on peut essayer de forcer l'URL du tunnel
+        $apiBaseUrl = $request ? $request->getSchemeAndHttpHost() : 'https://ninety-lines-sink.loca.lt';
+        
+        // Log pour vérifier l'URL générée
+        $this->logger->info('PaymentManager: Generating PDF URL', [
+            'apiBaseUrl' => $apiBaseUrl,
+            'ticketId' => $ticket->getId()
+        ]);
+
         $notification = new Notification();
         $notification->setTarget($phone);
         $notification->setTargetType(Notification::TARGET_TYPE_WHATSAPP);
@@ -350,6 +360,11 @@ class PaymentManager
         $notification->setType(NotificationType::PAYMENT_PAID);
         $notification->setTitle('OkapiPass');
         $notification->setBody(implode("\n", $lines));
+        $notification->setTemplateContext([
+            'reference' => $ref,
+            'action_url' => "https://okapi-pass-v2.vercel.app/payment/success?ref=" . $ref,
+            'pdf_url' => 'https://api.okapipass.pteron.pro' . "/api/tickets/" . $ticket->getId() . "/download-pdf"
+        ]);
 
         try {
             $this->notifications->send($notification);

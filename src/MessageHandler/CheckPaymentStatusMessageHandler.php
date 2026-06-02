@@ -98,34 +98,34 @@ final readonly class CheckPaymentStatusMessageHandler
 
             $this->em->flush();
 
-            if ($ticket instanceof Ticket && !$ticketWasPaid) {
-                $this->paymentManager->notifyWhatsappPaid($payment, $ticket, $conversationPhone);
-                $this->em->flush();
-            }
-
-            return;
-        }
-
-        if (in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
-            $ticketWasFailed = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_FAILED === $ticket->getPaymentStatus();
-
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_FAILED);
-            }
-
-            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
-            }
-
+        if ($ticket instanceof Ticket && !$ticketWasPaid) {
+            $this->paymentManager->notifyWhatsappPaid($payment, $ticket, $conversationPhone);
             $this->em->flush();
-
-            if ($ticket instanceof Ticket && !$ticketWasFailed) {
-                $this->paymentManager->notifyWhatsappFailed($payment, $ticket, $conversationPhone);
-                $this->em->flush();
-            }
-
-            return;
         }
+
+        return;
+    }
+
+    if (in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+        $ticketWasFailed = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_FAILED === $ticket->getPaymentStatus();
+
+        if (Payment::STATUS_PAID !== $payment->getStatus()) {
+            $payment->setStatus(Payment::STATUS_FAILED);
+        }
+
+        if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
+        }
+
+        $this->em->flush();
+
+        if ($ticket instanceof Ticket && !$ticketWasFailed) {
+            $this->paymentManager->notifyWhatsappFailed($payment, $ticket, $conversationPhone);
+            $this->em->flush();
+        }
+
+        return;
+    }
 
         $this->em->flush();
         $this->reschedule($payment->getId(), $attempt, $maxAttempts, $conversationPhone);
