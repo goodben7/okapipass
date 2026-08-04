@@ -7,6 +7,17 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  APP_ENV: test
+  APP_SECRET: ci_test_secret_change_me
+  DATABASE_URL: mysql://root:root@127.0.0.1:3306/okaoi?serverVersion=8.0&charset=utf8mb4
+  JWT_PASSPHRASE: ""
+  MAILER_SENDER: ci@okapipass.test
+  MAILER_SENDER_NAME: OkapiPass CI
+  ULTRAMSG_API_KEY: ci-dummy
+  ULTRAMSG_INSTANCE_ID: ci-dummy
+  FLEXPAY_MERCHANT_ID: ci-dummy
+  FLEXPAY_TOKEN: ci-dummy
+  AGENCY_PASS_VALIDATE_STRICT: "0"
 
 jobs:
   phpunit:
@@ -17,6 +28,20 @@ jobs:
       matrix:
         php: [ "8.4" ]
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: okaoi
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +49,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
           tools: composer:v2
           coverage: none
 
@@ -33,7 +59,16 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Generate JWT keypair
+        run: |
+          mkdir -p config/jwt
+          openssl genrsa -out config/jwt/private.pem 2048
+          openssl rsa -in config/jwt/private.pem -pubout -out config/jwt/public.pem
+
+      - name: Create test database & migrate
+        run: |
+          php bin/console doctrine:database:create --if-not-exists --env=test
+          php bin/console doctrine:migrations:migrate --no-interaction --env=test
+
       - name: Run tests
-        env:
-          APP_ENV: test
         run: php bin/phpunit
