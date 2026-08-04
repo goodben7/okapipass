@@ -18,6 +18,8 @@ api_platform:
         App\Exception\UnauthorizedActionException: 403
         App\Exception\InvalidActionInputException: 400
         App\Exception\UnknowRessourceException: 404
+        App\Exception\ConflictException: 409
+        App\Exception\UnprocessableEntityException: 422
     defaults:
         pagination_client_enabled: true
         pagination_client_items_per_page: true

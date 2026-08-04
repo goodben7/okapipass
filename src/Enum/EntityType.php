@@ -19,6 +19,14 @@ class EntityType
     public const string PROVINCE = 'PROVINCE';
     public const string NOTIFICATION = 'NOTIFICATION';
     public const string TICKET_VERIFICATION = 'TICKET_VERIFICATION';
+    public const string AGENCY_TRANSPORT = 'AGENCY_TRANSPORT';
+    public const string AGENCY_OFFER = 'AGENCY_OFFER';
+    public const string AGENCY_BOOKING = 'AGENCY_BOOKING';
+    public const string AGENCY_TICKET = 'AGENCY_TICKET';
+    public const string AGENCY_EMBARKATION = 'AGENCY_EMBARKATION';
+    public const string PASS_DECLARATION = 'PASS_DECLARATION';
+    public const string AGENCY_STAFF_MEMBER = 'AGENCY_STAFF_MEMBER';
+    public const string AGENCY_PAYMENT = 'AGENCY_PAYMENT';
 
 
     public static function getAll(): array
@@ -45,7 +53,15 @@ class EntityType
                 self::PROVINCE,
                 self::NOTIFICATION,
                 self::TICKET_VERIFICATION,
-            ],  
+                self::AGENCY_TRANSPORT,
+                self::AGENCY_OFFER,
+                self::AGENCY_BOOKING,
+                self::AGENCY_TICKET,
+                self::AGENCY_EMBARKATION,
+                self::PASS_DECLARATION,
+                self::AGENCY_STAFF_MEMBER,
+                self::AGENCY_PAYMENT,
+            ],
         ];
     }
 }

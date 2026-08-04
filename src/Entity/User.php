@@ -112,11 +112,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Ressour
     #[ORM\GeneratedValue( strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'US_ID', length: 16)]
-    #[Groups(['user:get', 'ticket:get'])]
+    #[Groups(['user:get', 'ticket:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'US_EMAIL', length: 180, nullable: true)]
-    #[Groups(['user:get', 'ticket:get'])]
+    #[Groups(['user:get', 'ticket:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $email = null;
 
     /**
@@ -135,11 +135,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Ressour
     public ?string $plainPassword;
 
     #[ORM\Column(name: 'US_PHONE', length: 15, nullable: true)]
-    #[Groups(['user:get', 'ticket:get'])]
+    #[Groups(['user:get', 'ticket:get', 'agency_staff:get'])]
     private ?string $phone = null;
 
     #[ORM\Column(name: 'US_DISPLAY_NAME', length: 120, nullable: true)]
-    #[Groups(['user:get', 'ticket:get'])]
+    #[Groups(['user:get', 'ticket:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $displayName = null;
 
     #[ORM\Column(name: 'US_DELETED', options: ['default' => false])]

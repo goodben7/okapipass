@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DoctrineMigrations;
+
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\Migrations\AbstractMigration;
+
+final class Version20260728170000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Agency staff members, counter payments, supported currencies';
+    }
+
+    public function up(Schema $schema): void
+    {
+        $this->addSql('ALTER TABLE `agency` ADD AG_SUPPORTED_CURRENCIES JSON DEFAULT NULL COMMENT \'(DC2Type:json)\'');
+        $this->addSql('UPDATE `agency` SET AG_SUPPORTED_CURRENCIES = JSON_ARRAY(COALESCE(AG_DEFAULT_CURRENCY, \'CDF\'))');
+        $this->addSql('ALTER TABLE `agency` MODIFY AG_SUPPORTED_CURRENCIES JSON NOT NULL COMMENT \'(DC2Type:json)\'');
+
+        $this->addSql('CREATE TABLE `agency_staff_member` (SM_ID VARCHAR(16) NOT NULL, SM_ROLE VARCHAR(20) NOT NULL, SM_ACTIVE TINYINT(1) NOT NULL, SM_CREATED_AT DATETIME NOT NULL, SM_AGENCY VARCHAR(16) NOT NULL, SM_USER VARCHAR(16) NOT NULL, UNIQUE INDEX UNIQ_AGENCY_STAFF_USER (SM_AGENCY, SM_USER), INDEX IDX_AGENCY_STAFF_AGENCY (SM_AGENCY), INDEX IDX_AGENCY_STAFF_USER (SM_USER), PRIMARY KEY(SM_ID)) DEFAULT CHARACTER SET utf8mb4');
+        $this->addSql('CREATE TABLE `agency_payment` (AP_ID VARCHAR(16) NOT NULL, AP_REFERENCE VARCHAR(30) NOT NULL, AP_AMOUNT INT NOT NULL, AP_CURRENCY VARCHAR(3) NOT NULL, AP_METHOD VARCHAR(20) NOT NULL, AP_STATUS VARCHAR(12) NOT NULL, AP_PAID_AT DATETIME DEFAULT NULL, AP_REFUNDED_AT DATETIME DEFAULT NULL, AP_NOTES VARCHAR(255) DEFAULT NULL, AP_CREATED_AT DATETIME NOT NULL, AP_AGENCY VARCHAR(16) NOT NULL, AP_TICKET VARCHAR(16) NOT NULL, AP_COLLECTED_BY VARCHAR(16) DEFAULT NULL, UNIQUE INDEX UNIQ_AGENCY_PAYMENT_REF (AP_REFERENCE), INDEX IDX_AGENCY_PAYMENT_AGENCY (AP_AGENCY), INDEX IDX_AGENCY_PAYMENT_TICKET (AP_TICKET), INDEX IDX_AGENCY_PAYMENT_COLLECTED (AP_COLLECTED_BY), PRIMARY KEY(AP_ID)) DEFAULT CHARACTER SET utf8mb4');
+
+        $this->addSql('ALTER TABLE `agency_staff_member` ADD CONSTRAINT FK_AGENCY_STAFF_AGENCY FOREIGN KEY (SM_AGENCY) REFERENCES `agency` (AG_ID)');
+        $this->addSql('ALTER TABLE `agency_staff_member` ADD CONSTRAINT FK_AGENCY_STAFF_USER FOREIGN KEY (SM_USER) REFERENCES `user` (US_ID)');
+        $this->addSql('ALTER TABLE `agency_payment` ADD CONSTRAINT FK_AGENCY_PAYMENT_AGENCY FOREIGN KEY (AP_AGENCY) REFERENCES `agency` (AG_ID)');
+        $this->addSql('ALTER TABLE `agency_payment` ADD CONSTRAINT FK_AGENCY_PAYMENT_TICKET FOREIGN KEY (AP_TICKET) REFERENCES `agency_ticket` (AK_ID)');
+        $this->addSql('ALTER TABLE `agency_payment` ADD CONSTRAINT FK_AGENCY_PAYMENT_COLLECTED FOREIGN KEY (AP_COLLECTED_BY) REFERENCES `user` (US_ID)');
+    }
+
+    public function down(Schema $schema): void
+    {
+        $this->addSql('ALTER TABLE `agency_payment` DROP FOREIGN KEY FK_AGENCY_PAYMENT_AGENCY');
+        $this->addSql('ALTER TABLE `agency_payment` DROP FOREIGN KEY FK_AGENCY_PAYMENT_TICKET');
+        $this->addSql('ALTER TABLE `agency_payment` DROP FOREIGN KEY FK_AGENCY_PAYMENT_COLLECTED');
+        $this->addSql('ALTER TABLE `agency_staff_member` DROP FOREIGN KEY FK_AGENCY_STAFF_AGENCY');
+        $this->addSql('ALTER TABLE `agency_staff_member` DROP FOREIGN KEY FK_AGENCY_STAFF_USER');
+        $this->addSql('DROP TABLE `agency_payment`');
+        $this->addSql('DROP TABLE `agency_staff_member`');
+        $this->addSql('ALTER TABLE `agency` DROP AG_SUPPORTED_CURRENCIES');
+    }
+}

@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DoctrineMigrations;
+
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\Migrations\AbstractMigration;
+
+final class Version20260728150000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Agency embarkations, pass declarations, declaration lines + ticket FKs';
+    }
+
+    public function up(Schema $schema): void
+    {
+        $this->addSql('CREATE TABLE `pass_declaration` (PD_ID VARCHAR(16) NOT NULL, PD_LABEL VARCHAR(160) NOT NULL, PD_SOURCE VARCHAR(20) NOT NULL, PD_STATUS VARCHAR(12) NOT NULL, PD_CURRENCY VARCHAR(3) NOT NULL, PD_FPT_TOTAL INT NOT NULL, PD_CREATED_AT DATETIME NOT NULL, PD_SUBMITTED_AT DATETIME DEFAULT NULL, PD_PAID_AT DATETIME DEFAULT NULL, PD_AGENCY VARCHAR(16) NOT NULL, INDEX IDX_PASS_DECL_AGENCY (PD_AGENCY), PRIMARY KEY(PD_ID)) DEFAULT CHARACTER SET utf8mb4');
+        $this->addSql('CREATE TABLE `agency_embarkation` (AE_ID VARCHAR(16) NOT NULL, AE_LABEL VARCHAR(160) NOT NULL, AE_DEPARTURE_DATE DATE NOT NULL, AE_DEPARTURE_TIME VARCHAR(5) NOT NULL, AE_STATUS VARCHAR(12) NOT NULL, AE_NOTES LONGTEXT DEFAULT NULL, AE_DEPARTED_AT DATETIME DEFAULT NULL, AE_DECLARED_AT DATETIME DEFAULT NULL, AE_CREATED_AT DATETIME NOT NULL, AE_UPDATED_AT DATETIME DEFAULT NULL, AE_AGENCY VARCHAR(16) NOT NULL, AE_OFFER VARCHAR(16) NOT NULL, AE_TRANSPORT VARCHAR(16) NOT NULL, AE_DECLARATION VARCHAR(16) DEFAULT NULL, UNIQUE INDEX UNIQ_AGENCY_EMB_DECL (AE_DECLARATION), INDEX IDX_AGENCY_EMB_AGENCY (AE_AGENCY), INDEX IDX_AGENCY_EMB_OFFER (AE_OFFER), INDEX IDX_AGENCY_EMB_TRANSPORT (AE_TRANSPORT), PRIMARY KEY(AE_ID)) DEFAULT CHARACTER SET utf8mb4');
+        $this->addSql('CREATE TABLE `declaration_line` (DL_ID VARCHAR(16) NOT NULL, DL_REFERENCE_BILLET VARCHAR(40) NOT NULL, DL_DATE DATE NOT NULL, DL_PASSENGER_NAME VARCHAR(120) NOT NULL, DL_PASSENGER_ID VARCHAR(60) NOT NULL, DL_ORIGIN VARCHAR(120) NOT NULL, DL_DESTINATION VARCHAR(120) NOT NULL, DL_TICKET_PRICE INT NOT NULL, DL_CURRENCY VARCHAR(3) NOT NULL, DL_PASS_PRICE INT NOT NULL, DL_OKAPI_PASS_REF VARCHAR(40) DEFAULT NULL, DL_HAS_EXISTING_PASS TINYINT(1) NOT NULL, DL_DECLARATION VARCHAR(16) NOT NULL, INDEX IDX_DECL_LINE_DECL (DL_DECLARATION), PRIMARY KEY(DL_ID)) DEFAULT CHARACTER SET utf8mb4');
+        $this->addSql('ALTER TABLE `pass_declaration` ADD CONSTRAINT FK_PASS_DECL_AGENCY FOREIGN KEY (PD_AGENCY) REFERENCES `agency` (AG_ID)');
+        $this->addSql('ALTER TABLE `agency_embarkation` ADD CONSTRAINT FK_AGENCY_EMB_AGENCY FOREIGN KEY (AE_AGENCY) REFERENCES `agency` (AG_ID)');
+        $this->addSql('ALTER TABLE `agency_embarkation` ADD CONSTRAINT FK_AGENCY_EMB_OFFER FOREIGN KEY (AE_OFFER) REFERENCES `agency_offer` (AO_ID)');
+        $this->addSql('ALTER TABLE `agency_embarkation` ADD CONSTRAINT FK_AGENCY_EMB_TRANSPORT FOREIGN KEY (AE_TRANSPORT) REFERENCES `agency_transport` (AT_ID)');
+        $this->addSql('ALTER TABLE `agency_embarkation` ADD CONSTRAINT FK_AGENCY_EMB_DECL FOREIGN KEY (AE_DECLARATION) REFERENCES `pass_declaration` (PD_ID)');
+        $this->addSql('ALTER TABLE `declaration_line` ADD CONSTRAINT FK_DECL_LINE_DECL FOREIGN KEY (DL_DECLARATION) REFERENCES `pass_declaration` (PD_ID)');
+        $this->addSql('ALTER TABLE `agency_ticket` ADD AK_EMBARKATION VARCHAR(16) DEFAULT NULL');
+        $this->addSql('ALTER TABLE `agency_ticket` ADD AK_DECLARATION VARCHAR(16) DEFAULT NULL');
+        $this->addSql('ALTER TABLE `agency_ticket` ADD CONSTRAINT FK_AGENCY_TICKET_EMB FOREIGN KEY (AK_EMBARKATION) REFERENCES `agency_embarkation` (AE_ID)');
+        $this->addSql('ALTER TABLE `agency_ticket` ADD CONSTRAINT FK_AGENCY_TICKET_DECL FOREIGN KEY (AK_DECLARATION) REFERENCES `pass_declaration` (PD_ID)');
+        $this->addSql('CREATE INDEX IDX_AGENCY_TICKET_EMB ON `agency_ticket` (AK_EMBARKATION)');
+        $this->addSql('CREATE INDEX IDX_AGENCY_TICKET_DECL ON `agency_ticket` (AK_DECLARATION)');
+    }
+
+    public function down(Schema $schema): void
+    {
+        $this->addSql('ALTER TABLE `agency_ticket` DROP FOREIGN KEY FK_AGENCY_TICKET_EMB');
+        $this->addSql('ALTER TABLE `agency_ticket` DROP FOREIGN KEY FK_AGENCY_TICKET_DECL');
+        $this->addSql('DROP INDEX IDX_AGENCY_TICKET_EMB ON `agency_ticket`');
+        $this->addSql('DROP INDEX IDX_AGENCY_TICKET_DECL ON `agency_ticket`');
+        $this->addSql('ALTER TABLE `agency_ticket` DROP AK_EMBARKATION');
+        $this->addSql('ALTER TABLE `agency_ticket` DROP AK_DECLARATION');
+        $this->addSql('ALTER TABLE `declaration_line` DROP FOREIGN KEY FK_DECL_LINE_DECL');
+        $this->addSql('ALTER TABLE `agency_embarkation` DROP FOREIGN KEY FK_AGENCY_EMB_AGENCY');
+        $this->addSql('ALTER TABLE `agency_embarkation` DROP FOREIGN KEY FK_AGENCY_EMB_OFFER');
+        $this->addSql('ALTER TABLE `agency_embarkation` DROP FOREIGN KEY FK_AGENCY_EMB_TRANSPORT');
+        $this->addSql('ALTER TABLE `agency_embarkation` DROP FOREIGN KEY FK_AGENCY_EMB_DECL');
+        $this->addSql('ALTER TABLE `pass_declaration` DROP FOREIGN KEY FK_PASS_DECL_AGENCY');
+        $this->addSql('DROP TABLE `declaration_line`');
+        $this->addSql('DROP TABLE `agency_embarkation`');
+        $this->addSql('DROP TABLE `pass_declaration`');
+    }
+}

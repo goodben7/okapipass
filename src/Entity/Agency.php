@@ -20,12 +20,14 @@ use App\Model\RessourceInterface;
 use App\Repository\AgencyRepository;
 use App\State\CreateAgencyProcessor;
 use App\State\UpdateAgencyProcessor;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
-#[ORM\Entity(repositoryClass: AgencyRepository::class)] 
+#[ORM\Entity(repositoryClass: AgencyRepository::class)]
 #[ORM\Table(name: '`agency`')]
+#[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     normalizationContext: ['groups' => 'agency:get'],
     operations: [
@@ -70,6 +72,9 @@ class Agency implements RessourceInterface
 
     public const string STATUS_ACTIVE = 'ACTIVE';
     public const string STATUS_INACTIVE = 'INACTIVE';
+    public const string STATUS_SUSPENDED = 'SUSPENDED';
+
+    public const string DEFAULT_CURRENCY = 'CDF';
 
     public const string EVENT_AGENCY_CREATED = 'agency.created';
     public const string EVENT_AGENCY_UPDATED = 'agency.updated';
@@ -78,13 +83,13 @@ class Agency implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'AG_ID', length: 16)]
-    #[Groups(['agency:get'])]
+    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'AG_NAME', length: 120)]
     #[Assert\NotBlank]
     #[Assert\Length(max: 120)]
-    #[Groups(['agency:get'])]
+    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $name = null;
 
     #[ORM\Column(name: 'AG_EMAIL', length: 180, nullable: true)]
@@ -103,6 +108,22 @@ class Agency implements RessourceInterface
     #[Groups(['agency:get'])]
     private ?string $address = null;
 
+    #[ORM\Column(name: 'AG_LICENSE_NUMBER', length: 50, nullable: true)]
+    #[Assert\Length(max: 50)]
+    #[Groups(['agency:get'])]
+    private ?string $licenseNumber = null;
+
+    #[ORM\Column(name: 'AG_DEFAULT_CURRENCY', length: 3, options: ['default' => self::DEFAULT_CURRENCY])]
+    #[Assert\Currency]
+    #[Assert\Length(exactly: 3)]
+    #[Groups(['agency:get'])]
+    private string $defaultCurrency = self::DEFAULT_CURRENCY;
+
+    /** @var list<string> */
+    #[ORM\Column(name: 'AG_SUPPORTED_CURRENCIES', type: Types::JSON, options: ['default' => '["CDF"]'])]
+    #[Groups(['agency:get'])]
+    private array $supportedCurrencies = [self::DEFAULT_CURRENCY];
+
     #[ORM\Column(name: 'AG_TYPE', length: 10)]
     #[Assert\Choice(callback: [self::class, 'getTypesAsList'])]
     #[Groups(['agency:get'])]
@@ -113,6 +134,10 @@ class Agency implements RessourceInterface
     #[Groups(['agency:get'])]
     private ?string $status = self::STATUS_ACTIVE;
 
+    /**
+     * Partner user linked to this agency (existing column — kept for BC).
+     * Resolution for portal: see AgencyContext.
+     */
     #[ORM\Column(name: 'AG_USER_ID', length: 16, nullable: true)]
     #[Groups(['agency:get'])]
     private ?string $userId = null;
@@ -120,6 +145,10 @@ class Agency implements RessourceInterface
     #[ORM\Column(name: 'AG_CREATED_AT')]
     #[Groups(['agency:get'])]
     private ?\DateTimeImmutable $createdAt = null;
+
+    #[ORM\Column(name: 'AG_UPDATED_AT', nullable: true)]
+    #[Groups(['agency:get'])]
+    private ?\DateTimeImmutable $updatedAt = null;
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(name: 'AG_CREATED_BY', nullable: true, referencedColumnName: 'US_ID')]
@@ -131,6 +160,7 @@ class Agency implements RessourceInterface
         return [
             self::STATUS_ACTIVE,
             self::STATUS_INACTIVE,
+            self::STATUS_SUSPENDED,
         ];
     }
 
@@ -244,9 +274,71 @@ class Agency implements RessourceInterface
         return $this;
     }
 
+    public function getLicenseNumber(): ?string
+    {
+        return $this->licenseNumber;
+    }
+
+    public function setLicenseNumber(?string $licenseNumber): static
+    {
+        $this->licenseNumber = $licenseNumber;
+
+        return $this;
+    }
+
+    public function getDefaultCurrency(): string
+    {
+        return $this->defaultCurrency;
+    }
+
+    public function setDefaultCurrency(string $defaultCurrency): static
+    {
+        $this->defaultCurrency = $defaultCurrency;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getSupportedCurrencies(): array
+    {
+        return $this->supportedCurrencies ?: [self::DEFAULT_CURRENCY];
+    }
+
+    /**
+     * @param list<string> $supportedCurrencies
+     */
+    public function setSupportedCurrencies(array $supportedCurrencies): static
+    {
+        $this->supportedCurrencies = array_values(array_unique(array_map(
+            static fn (string $c): string => strtoupper($c),
+            $supportedCurrencies
+        ))) ?: [self::DEFAULT_CURRENCY];
+
+        return $this;
+    }
+
+    public function supportsCurrency(string $currency): bool
+    {
+        return \in_array(strtoupper($currency), $this->getSupportedCurrencies(), true);
+    }
+
+    public function getUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(?\DateTimeImmutable $updatedAt): static
+    {
+        $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
     /**
      * Get the value of userId
-     */ 
+     */
     public function getUserId(): string|null
     {
         return $this->userId;
@@ -255,12 +347,34 @@ class Agency implements RessourceInterface
     /**
      * Set the value of userId
      *
-     * @return  self
-     */ 
+     * @return self
+     */
     public function setUserId(string|null $userId): static
     {
         $this->userId = $userId;
 
         return $this;
+    }
+
+    public function isOperational(): bool
+    {
+        return self::STATUS_ACTIVE === $this->status;
+    }
+
+    #[ORM\PrePersist]
+    public function onPrePersist(): void
+    {
+        $now = new \DateTimeImmutable('now');
+        $this->createdAt ??= $now;
+        $this->updatedAt = $now;
+        if ('' === $this->defaultCurrency) {
+            $this->defaultCurrency = self::DEFAULT_CURRENCY;
+        }
+    }
+
+    #[ORM\PreUpdate]
+    public function onPreUpdate(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable('now');
     }
 }

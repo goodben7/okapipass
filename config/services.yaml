@@ -14,6 +14,7 @@ parameters:
     flexpay_card_approve_url_default: 'https://okapi-pass-v2.vercel.app/payment/success?ref={ref}'
     flexpay_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app/payment/cancelled?ref={ref}'
     flexpay_card_decline_url_default: 'https://okapi-pass-v2.vercel.app/payment/failed?ref={ref}&reason={reason}'
+    agency_pass_validate_strict_default: '0'
 
 services:
     # default configuration for services in *this* file
@@ -43,6 +44,11 @@ services:
             $whatsappInstanceId: '%env(ULTRAMSG_INSTANCE_ID)%'
         tags: [ 'app.notification_sender' ]
 
+    App\Domain\Agency\PassValidationService:
+        arguments:
+            $strict: '%env(bool:default:agency_pass_validate_strict_default:AGENCY_PASS_VALIDATE_STRICT)%'
+
+    App\Contract\AgencySmsSenderInterface: '@App\Service\Agency\LoggingAgencySmsSender'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

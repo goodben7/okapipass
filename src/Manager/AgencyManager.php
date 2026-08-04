@@ -48,6 +48,7 @@ class AgencyManager
         $agency->setAddress($model->address);
         $agency->setType($model->type ?? Agency::TYPE_ROAD);
         $agency->setStatus(Agency::STATUS_ACTIVE);
+        $agency->setDefaultCurrency(Agency::DEFAULT_CURRENCY);
         $agency->setCreatedAt(new \DateTimeImmutable('now'));
         $agency->setCreatedBy($createdBy);
 

@@ -12,4 +12,9 @@ class AgencyRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Agency::class);
     }
+
+    public function findOneByPartnerUserId(string $userId): ?Agency
+    {
+        return $this->findOneBy(['userId' => $userId]);
+    }
 }
