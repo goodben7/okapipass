@@ -1,0 +1,84 @@
+# OkapiPass API — stack VPS / staging (Docker)
+# Usage: docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+
+name: okapipass
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: okapipass_php
+    restart: unless-stopped
+    env_file:
+      - .env.vps
+    environment:
+      DB_HOST: mysql
+      APP_ENV: ${APP_ENV:-dev}
+      APP_DEBUG: ${APP_DEBUG:-1}
+    volumes:
+      - ./:/var/www/html:rw
+      - composer_cache:/tmp/composer
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - okapipass
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: okapipass_nginx
+    restart: unless-stopped
+    ports:
+      # Bound to localhost — host Nginx (TLS) reverse-proxies here
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php
+    networks:
+      - okapipass
+
+  mysql:
+    image: mysql:8.0
+    container_name: okapipass_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootchangeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-okapipass}
+      MYSQL_USER: ${MYSQL_USER:-okapi}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-okapichangeme}
+    ports:
+      # Optional: expose MySQL only on localhost for admin tools
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootchangeme}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - okapipass
+
+  # Optional: catch mail in staging (UI http://VPS_IP:8025 via SSH tunnel)
+  mailpit:
+    image: axllent/mailpit
+    container_name: okapipass_mailpit
+    restart: unless-stopped
+    profiles: ["mail"]
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    networks:
+      - okapipass
+
+volumes:
+  mysql_data:
+  composer_cache:
+
+networks:
+  okapipass:
+    driver: bridge
