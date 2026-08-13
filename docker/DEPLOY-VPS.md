@@ -96,7 +96,7 @@ docker compose -f docker-compose.vps.yml exec php php bin/console app:seed-agenc
 
 ---
 
-## 4. Update
+## 4. Update (manuel)
 
 ```bash
 cd /var/www/okapipass
@@ -104,7 +104,53 @@ git pull
 docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 docker compose -f docker-compose.vps.yml exec php php bin/console doctrine:migrations:migrate --no-interaction
 docker compose -f docker-compose.vps.yml exec php php bin/console cache:clear
+docker compose -f docker-compose.vps.yml --env-file .env.vps restart nginx
 ```
+
+---
+
+## 4b. CI/CD GitHub Actions (push `main` → VPS)
+
+Workflow : `.github/workflows/deploy-vps.yml`  
+Sur chaque push `main` : PHPUnit → SSH → `git reset` + `docker compose up --build` + migrate + healthcheck.
+
+### 1. Clé SSH dédiée deploy (sur le VPS)
+
+```bash
+# Sur ta machine locale (ou une fois)
+ssh-keygen -t ed25519 -C "github-actions-okapipass" -f ./okapipass_deploy -N ""
+
+# Sur le VPS
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "CONTENU_okapipass_deploy.pub" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+### 2. Secrets GitHub (Settings → Secrets and variables → Actions)
+
+| Secret | Exemple |
+|--------|---------|
+| `VPS_HOST` | `141.136.42.36` |
+| `VPS_USER` | `digis` |
+| `VPS_SSH_KEY` | contenu **privé** de `okapipass_deploy` (tout le fichier, y compris `BEGIN`/`END`) |
+| `VPS_APP_DIR` | `/var/www/okapipass` |
+| `VPS_PORT` | `22` (optionnel) |
+
+### 3. Droits Git sur le VPS
+
+Le user SSH doit pouvoir `git fetch` dans `/var/www/okapipass` (clone déjà en HTTPS avec credentials, ou deploy key read-only sur le repo + remote SSH).
+
+```bash
+cd /var/www/okapipass
+git remote -v
+# Si fetch GitHub échoue en CI : ajouter une deploy key read-only
+# ou garder HTTPS + credential helper / token en remote URL (éviter de committer le token)
+```
+
+### 4. Tester
+
+- Actions → **Deploy (VPS)** → *Run workflow*, ou
+- `git push origin main`
 
 ---
 

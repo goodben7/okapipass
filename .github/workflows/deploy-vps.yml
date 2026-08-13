@@ -1,6 +1,12 @@
 name: Deploy (VPS)
 
+# Déploie sur le VPS après un push sur main (ou manuellement).
+# Prérequis secrets GitHub : VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_APP_DIR
+# Optionnel : VPS_PORT (défaut 22)
+
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -8,28 +14,109 @@ env:
 
 concurrency:
   group: deploy-vps
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Réutilise la même logique que CI avant de toucher le VPS
+  phpunit:
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4"]
+    env:
+      APP_ENV: test
+      APP_SECRET: ci_test_secret_change_me
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/okaoi?serverVersion=8.0&charset=utf8mb4
+      JWT_PASSPHRASE: ""
+      MAILER_SENDER: ci@okapipass.test
+      MAILER_SENDER_NAME: OkapiPass CI
+      ULTRAMSG_API_KEY: ci-dummy
+      ULTRAMSG_INSTANCE_ID: ci-dummy
+      FLEXPAY_MERCHANT_ID: ci-dummy
+      FLEXPAY_TOKEN: ci-dummy
+      AGENCY_PASS_VALIDATE_STRICT: "0"
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: okaoi
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
-      - name: Deploy over SSH
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Generate JWT keypair
+        run: |
+          mkdir -p config/jwt
+          openssl genrsa -out config/jwt/private.pem 2048
+          openssl rsa -in config/jwt/private.pem -pubout -out config/jwt/public.pem
+      - name: Migrate & test
+        run: |
+          php bin/console doctrine:database:create --if-not-exists --env=test
+          php bin/console doctrine:migrations:migrate --no-interaction --env=test
+          php bin/phpunit
+
+  deploy:
+    needs: [phpunit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH (Docker VPS)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           script_stop: true
+          command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ secrets.VPS_APP_DIR }}"
-            sudo chown -R "$(whoami)":"$(whoami)" "${{ secrets.VPS_APP_DIR }}" || true
-            git config --global --add safe.directory "${{ secrets.VPS_APP_DIR }}"
+            APP_DIR="${{ secrets.VPS_APP_DIR }}"
+            cd "$APP_DIR"
+
+            git config --global --add safe.directory "$APP_DIR" || true
             git fetch --all --prune
+            git checkout main
             git reset --hard origin/main
-            composer install --no-interaction --prefer-dist
-            php bin/console cache:clear --env=dev
-            php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+            # Stack Docker (MySQL inchangé si image/identiques)
+            docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+
+            # Dépendances PHP (code monté en volume)
+            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              composer install --no-interaction --prefer-dist --optimize-autoloader
+
+            # Migrations (après que la DB soit up — pas via recreate entrypoint seul)
+            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+
+            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              php bin/console cache:clear --no-interaction
+
+            # Évite 502 si IP Docker de php a changé
+            docker compose -f docker-compose.vps.yml --env-file .env.vps restart nginx
+
+            # Healthcheck
+            sleep 2
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/docs || true)"
+            echo "Health /api/docs → HTTP $code"
+            case "$code" in
+              200|301|302) ;;
+              *) echo "Deploy healthcheck failed"; exit 1 ;;
+            esac
+
+            echo "Deploy OK → $(git rev-parse --short HEAD)"
