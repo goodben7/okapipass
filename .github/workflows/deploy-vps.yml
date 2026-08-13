@@ -98,6 +98,8 @@ jobs:
 
             # Dépendances PHP (code monté en volume)
             docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              git config --global --add safe.directory /var/www/html || true
+            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
               composer install --no-interaction --prefer-dist --optimize-autoloader
 
             # Migrations (après que la DB soit up — pas via recreate entrypoint seul)
@@ -110,13 +112,13 @@ jobs:
             # Évite 502 si IP Docker de php a changé
             docker compose -f docker-compose.vps.yml --env-file .env.vps restart nginx
 
-            # Healthcheck
+            # Healthcheck (éviter case/;; — mal parsé par drone-ssh)
             sleep 2
-            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/docs || true)"
-            echo "Health /api/docs → HTTP $code"
-            case "$code" in
-              200|301|302) ;;
-              *) echo "Deploy healthcheck failed"; exit 1 ;;
-            esac
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/docs || echo 000)
+            echo "Health /api/docs → HTTP ${code}"
+            if [ "${code}" != "200" ] && [ "${code}" != "301" ] && [ "${code}" != "302" ]; then
+              echo "Deploy healthcheck failed"
+              exit 1
+            fi
 
             echo "Deploy OK → $(git rev-parse --short HEAD)"
