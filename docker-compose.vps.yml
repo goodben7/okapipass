@@ -1,5 +1,7 @@
-# OkapiPass API — stack VPS / staging (Docker)
-# Usage: docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+# OkapiPass API — stack VPS / staging (MySQL 8)
+# Usage:
+#   cp .env.vps.dist .env.vps && nano .env.vps
+#   docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 
 name: okapipass
 
@@ -16,6 +18,8 @@ services:
       DB_HOST: mysql
       APP_ENV: ${APP_ENV:-dev}
       APP_DEBUG: ${APP_DEBUG:-1}
+      # Force MySQL Docker service (overrides any leftover postgres in .env)
+      DATABASE_URL: ${DATABASE_URL}
     volumes:
       - ./:/var/www/html:rw
       - composer_cache:/tmp/composer
@@ -30,7 +34,6 @@ services:
     container_name: okapipass_nginx
     restart: unless-stopped
     ports:
-      # Bound to localhost — host Nginx (TLS) reverse-proxies here
       - "127.0.0.1:8080:80"
     volumes:
       - ./:/var/www/html:ro
@@ -49,21 +52,34 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-okapipass}
       MYSQL_USER: ${MYSQL_USER:-okapi}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-okapichangeme}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_allowed_packet=64M
     ports:
-      # Optional: expose MySQL only on localhost for admin tools
       - "127.0.0.1:3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootchangeme}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "127.0.0.1",
+          "-uroot",
+          "-p${MYSQL_ROOT_PASSWORD:-rootchangeme}",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 12
+      start_period: 40s
     networks:
       - okapipass
 
-  # Optional: catch mail in staging (UI http://VPS_IP:8025 via SSH tunnel)
   mailpit:
     image: axllent/mailpit
     container_name: okapipass_mailpit

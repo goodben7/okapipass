@@ -1,0 +1,17 @@
+.git
+.github
+.phpunit.cache
+.DS_Store
+.env.local
+.env.*.local
+.env.vps
+/var/
+/vendor/
+/bruno/
+/node_modules/
+*.md
+!docker/DEPLOY-VPS.md
+agency-*.md
+tests/
+phpunit.dist.xml
+compose.override.yaml

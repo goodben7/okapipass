@@ -3,24 +3,28 @@ set -e
 
 cd /var/www/html
 
-echo "[entrypoint] waiting for database ${DB_HOST:-mysql}:3306 …"
+DB_HOST="${DB_HOST:-mysql}"
+echo "[entrypoint] waiting for MySQL at ${DB_HOST}:3306 …"
+
 i=0
-until php -r "try { new PDO('mysql:host=${DB_HOST:-mysql};port=3306', getenv('MYSQL_USER') ?: 'okapi', getenv('MYSQL_PASSWORD') ?: ''); exit(0);} catch (Throwable \$e) { exit(1); }" 2>/dev/null; do
+until mysqladmin ping -h"$DB_HOST" -uroot -p"${MYSQL_ROOT_PASSWORD:-root}" --silent 2>/dev/null \
+   || mysqladmin ping -h"$DB_HOST" -u"${MYSQL_USER:-okapi}" -p"${MYSQL_PASSWORD:-okapi}" --silent 2>/dev/null; do
   i=$((i + 1))
-  if [ "$i" -gt 60 ]; then
-    echo "[entrypoint] database not reachable" >&2
+  if [ "$i" -gt 90 ]; then
+    echo "[entrypoint] MySQL not reachable after 90s" >&2
     exit 1
   fi
   sleep 1
 done
-echo "[entrypoint] mysql is up"
+echo "[entrypoint] MySQL is up"
 
-mkdir -p config/jwt var/cache var/log var/share public/media
+mkdir -p config/jwt var/cache var/log var/share public/media public/bundles
 
 if [ ! -f config/jwt/private.pem ]; then
-  echo "[entrypoint] generating JWT keypair…"
+  echo "[entrypoint] generating JWT keypair (no passphrase)…"
   openssl genrsa -out config/jwt/private.pem 2048
   openssl rsa -in config/jwt/private.pem -pubout -out config/jwt/public.pem
+  chmod 644 config/jwt/*.pem
 fi
 
 if [ ! -f vendor/autoload.php ]; then
@@ -32,11 +36,10 @@ if [ ! -f vendor/autoload.php ]; then
   fi
 fi
 
-# Run Symfony scripts once deps are present
 composer dump-autoload -o --no-interaction 2>/dev/null || true
 
-if [ -n "${APP_SECRET:-}" ]; then
-  echo "[entrypoint] doctrine migrate + cache…"
+if [ -n "${APP_SECRET:-}" ] && [ -n "${DATABASE_URL:-}" ]; then
+  echo "[entrypoint] doctrine migrate + cache (MySQL)…"
   php bin/console doctrine:database:create --if-not-exists --no-interaction 2>/dev/null || true
   php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration || true
   php bin/console assets:install public --no-interaction 2>/dev/null || true
