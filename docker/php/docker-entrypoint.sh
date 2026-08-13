@@ -44,6 +44,8 @@ if [ -n "${APP_SECRET:-}" ] && [ -n "${DATABASE_URL:-}" ]; then
   php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration || true
   php bin/console messenger:setup-transports --no-interaction 2>/dev/null || true
   php bin/console assets:install public --no-interaction 2>/dev/null || true
+  # Compile Asset Mapper so /assets/* exist on disk (Swagger / API Platform UI)
+  php bin/console asset-map:compile --no-interaction 2>/dev/null || true
   php bin/console cache:clear --no-interaction || true
 fi
 
