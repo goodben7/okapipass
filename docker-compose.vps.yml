@@ -29,6 +29,34 @@ services:
     networks:
       - okapipass
 
+  # Symfony Messenger — async queue (mails, notifs, payment checks, activity…)
+  # Transport: doctrine://default → table messenger_messages in MySQL
+  worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: okapipass_worker
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/worker-entrypoint"]
+    env_file:
+      - .env.vps
+    environment:
+      DB_HOST: mysql
+      APP_ENV: ${APP_ENV:-dev}
+      APP_DEBUG: ${APP_DEBUG:-1}
+      DATABASE_URL: ${DATABASE_URL}
+      MESSENGER_TRANSPORT_DSN: ${MESSENGER_TRANSPORT_DSN:-doctrine://default?auto_setup=0}
+    volumes:
+      - ./:/var/www/html:rw
+      - composer_cache:/tmp/composer
+    depends_on:
+      mysql:
+        condition: service_healthy
+      php:
+        condition: service_started
+    networks:
+      - okapipass
+
   nginx:
     image: nginx:1.27-alpine
     container_name: okapipass_nginx

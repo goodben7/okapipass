@@ -27,6 +27,7 @@ Internet → Nginx hôte (:443)
 |---------|-------------------|
 | PHP 8.4-FPM + `pdo_mysql` | `docker/php/Dockerfile` |
 | Entrypoint (wait MySQL, JWT, composer, migrations) | `docker/php/docker-entrypoint.sh` |
+| **Worker Messenger async** | service `worker` → `messenger:consume async failed` |
 | Nginx app | `docker/nginx/default.conf` |
 | MySQL 8 utf8mb4 | service `mysql` + `docker/mysql/conf.d/` |
 | Env | `.env.vps` (depuis `.env.vps.dist`) |
@@ -75,6 +76,8 @@ sudo certbot --nginx -d api.ont.digisafrica.tech
 cd /var/www/okapipass
 docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 docker compose -f docker-compose.vps.yml logs -f php
+# Worker async (mails / notifs / payment checks) :
+docker compose -f docker-compose.vps.yml logs -f worker
 ```
 
 Checks :

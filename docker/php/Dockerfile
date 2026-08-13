@@ -16,7 +16,8 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 COPY docker/php/conf.d/app.ini /usr/local/etc/php/conf.d/app.ini
 COPY docker/php/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
-RUN chmod +x /usr/local/bin/docker-entrypoint
+COPY docker/php/worker-entrypoint.sh /usr/local/bin/worker-entrypoint
+RUN chmod +x /usr/local/bin/docker-entrypoint /usr/local/bin/worker-entrypoint
 
 WORKDIR /var/www/html
 

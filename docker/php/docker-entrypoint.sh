@@ -39,9 +39,10 @@ fi
 composer dump-autoload -o --no-interaction 2>/dev/null || true
 
 if [ -n "${APP_SECRET:-}" ] && [ -n "${DATABASE_URL:-}" ]; then
-  echo "[entrypoint] doctrine migrate + cache (MySQL)…"
+  echo "[entrypoint] doctrine migrate + messenger + cache (MySQL)…"
   php bin/console doctrine:database:create --if-not-exists --no-interaction 2>/dev/null || true
   php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration || true
+  php bin/console messenger:setup-transports --no-interaction 2>/dev/null || true
   php bin/console assets:install public --no-interaction 2>/dev/null || true
   php bin/console cache:clear --no-interaction || true
 fi
