@@ -96,11 +96,16 @@ jobs:
             # Stack Docker (MySQL inchangé si image/identiques)
             docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
 
-            # Dépendances PHP (code monté en volume)
+            # Stop worker pendant composer/cache pour éviter la race Symfony (var/cache/de_)
+            docker compose -f docker-compose.vps.yml --env-file .env.vps stop worker || true
+
+            # Dépendances PHP (code monté en volume) — sans auto-scripts (cache:clear)
             docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
               git config --global --add safe.directory /var/www/html || true
             docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
-              composer install --no-interaction --prefer-dist --optimize-autoloader
+              rm -rf var/cache/*
+            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
 
             # Migrations (après que la DB soit up — pas via recreate entrypoint seul)
             docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
@@ -111,14 +116,17 @@ jobs:
 
             # Évite 502 si IP Docker de php a changé
             docker compose -f docker-compose.vps.yml --env-file .env.vps restart nginx
+            sleep 5
 
             # Healthcheck (éviter case/;; — mal parsé par drone-ssh)
-            sleep 2
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/docs || echo 000)
             echo "Health /api/docs → HTTP ${code}"
             if [ "${code}" != "200" ] && [ "${code}" != "301" ] && [ "${code}" != "302" ]; then
               echo "Deploy healthcheck failed"
+              docker compose -f docker-compose.vps.yml --env-file .env.vps start worker || true
               exit 1
             fi
+
+            docker compose -f docker-compose.vps.yml --env-file .env.vps start worker
 
             echo "Deploy OK → $(git rev-parse --short HEAD)"

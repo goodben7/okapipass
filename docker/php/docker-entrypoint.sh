@@ -46,7 +46,8 @@ if [ -n "${APP_SECRET:-}" ] && [ -n "${DATABASE_URL:-}" ]; then
   php bin/console assets:install public --no-interaction 2>/dev/null || true
   # Compile Asset Mapper so /assets/* exist on disk (Swagger / API Platform UI)
   php bin/console asset-map:compile --no-interaction 2>/dev/null || true
-  php bin/console cache:clear --no-interaction || true
+  # Warm only — never cache:clear here (races with worker + deploy composer scripts → var/cache/de_)
+  php bin/console cache:warmup --no-interaction 2>/dev/null || true
 fi
 
 chown -R www-data:www-data var public/media config/jwt 2>/dev/null || true

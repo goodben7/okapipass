@@ -3,9 +3,11 @@ set -e
 
 cd /var/www/html
 
-echo "[worker] waiting for app + MySQL…"
+echo "[worker] waiting for app + MySQL + Symfony cache…"
 i=0
-until [ -f vendor/autoload.php ] && php -r "exit(0);" 2>/dev/null; do
+until [ -f vendor/autoload.php ] \
+  && { [ -d var/cache/dev ] || [ -d var/cache/prod ]; } \
+  && php -r "exit(0);" 2>/dev/null; do
   i=$((i + 1))
   if [ "$i" -gt 120 ]; then
     echo "[worker] app not ready" >&2
