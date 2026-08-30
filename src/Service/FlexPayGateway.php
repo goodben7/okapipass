@@ -24,6 +24,9 @@ class FlexPayGateway implements PaymentGatewayInterface, AgencyFlexPayClientInte
         private string $cardApproveUrl,
         private string $cardCancelUrl,
         private string $cardDeclineUrl,
+        private string $agencyCardApproveUrl,
+        private string $agencyCardCancelUrl,
+        private string $agencyCardDeclineUrl,
         private LoggerInterface $logger,
     ) {}
     
@@ -56,15 +59,15 @@ class FlexPayGateway implements PaymentGatewayInterface, AgencyFlexPayClientInte
         $callbackUrl = $this->normalizeUrl($this->callbackUrl);
 
         $approveUrl = $this->expandUrlTemplate(
-            $this->normalizeUrl($this->cardApproveUrl),
+            $this->normalizeUrl($this->agencyCardApproveUrl),
             ['ref' => $ticketRef, 'reason' => ''],
         );
         $cancelUrl = $this->expandUrlTemplate(
-            $this->normalizeUrl($this->cardCancelUrl),
+            $this->normalizeUrl($this->agencyCardCancelUrl),
             ['ref' => $ticketRef, 'reason' => ''],
         );
         $declineUrl = $this->expandUrlTemplate(
-            $this->normalizeUrl($this->cardDeclineUrl),
+            $this->normalizeUrl($this->agencyCardDeclineUrl),
             ['ref' => $ticketRef, 'reason' => ''],
         );
 
@@ -166,9 +169,20 @@ class FlexPayGateway implements PaymentGatewayInterface, AgencyFlexPayClientInte
 
         $cardPayUrl = $this->normalizeUrl($this->cardPayUrl);
         $callbackUrl = $this->normalizeUrl($this->callbackUrl);
-        $approveUrl = $this->normalizeUrl($this->cardApproveUrl);
-        $cancelUrl = $this->normalizeUrl($this->cardCancelUrl);
-        $declineUrl = $this->normalizeUrl($this->cardDeclineUrl);
+        $booking = $payment->getBooking();
+        $tokenRef = (string) ($booking?->getPublicToken() ?: $payment->getReference());
+        $approveUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->agencyCardApproveUrl),
+            ['ref' => $tokenRef, 'reason' => ''],
+        );
+        $cancelUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->agencyCardCancelUrl),
+            ['ref' => $tokenRef, 'reason' => ''],
+        );
+        $declineUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->agencyCardDeclineUrl),
+            ['ref' => $tokenRef, 'reason' => ''],
+        );
         $cardReference = $this->buildAgencyCardReference($payment);
 
         $payload = [

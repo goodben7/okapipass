@@ -25,6 +25,7 @@ final class PublicAgencyTicketResource
         public bool $hasExistingPass,
         public ?string $qrPayload,
         public array $offer,
+        public ?string $pdfUrl = null,
     ) {
     }
 }

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { margin: 0; }
+        body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #1e40af; }
+        .container { width: 450px; height: 650px; background-color: #1e40af; position: relative; color: #ffffff; }
+        .top-border { width: 100%; height: 6px; }
+        .border-item { float: left; height: 6px; width: 33.33%; }
+        .content { padding: 30px; }
+        .org-name { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.7); margin-bottom: 5px; }
+        .brand { font-size: 24px; font-weight: bold; }
+        .brand-yellow { color: #fbbf24; }
+        .qr-section { text-align: center; margin-top: 10px; }
+        .qr-box { background-color: #ffffff; padding: 20px; border-radius: 25px; display: inline-block; }
+        .qr-image { width: 180px; height: 180px; }
+        .ref-container { text-align: center; margin-top: 20px; }
+        .ref-badge { background-color: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 10px 25px; border-radius: 15px; color: #fbbf24; font-size: 18px; font-weight: bold; display: inline-block; }
+        .info-table { width: 100%; margin-top: 25px; border-collapse: collapse; }
+        .info-table td { width: 50%; padding-bottom: 16px; vertical-align: top; }
+        .label { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-bottom: 5px; }
+        .value { font-size: 15px; font-weight: bold; color: #ffffff; }
+        .value-yellow { color: #fbbf24; }
+        .footer { position: absolute; bottom: 30px; left: 30px; right: 30px; }
+        .status-badge { float: right; border: 1px solid #10b981; padding: 5px 12px; border-radius: 15px; color: #10b981; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="top-border">
+        <div class="border-item" style="background-color: #1e40af;"></div>
+        <div class="border-item" style="background-color: #fbbf24;"></div>
+        <div class="border-item" style="background-color: #ef4444;"></div>
+    </div>
+    <div class="content">
+        <div class="org-name">{{ agency.name|default('Agence partenaire') }}</div>
+        <div class="brand">Okapi<span class="brand-yellow">Pass</span> — Billet voyage</div>
+
+        <div class="qr-section">
+            <div class="qr-box">
+                <img src="{{ qrCode }}" class="qr-image" alt="QR">
+            </div>
+        </div>
+
+        <div class="ref-container">
+            <div class="ref-badge">{{ ticket.reference|upper }}</div>
+        </div>
+
+        <table class="info-table">
+            <tr>
+                <td>
+                    <div class="label">Passager</div>
+                    <div class="value">{{ ticket.passengerName }}</div>
+                </td>
+                <td>
+                    <div class="label">Siège</div>
+                    <div class="value value-yellow">{{ ticket.seatNumber }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div class="label">Départ</div>
+                    <div class="value">{{ offer.origin|default('—') }}</div>
+                </td>
+                <td>
+                    <div class="label">Arrivée</div>
+                    <div class="value">{{ offer.destination|default('—') }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div class="label">Date voyage</div>
+                    <div class="value">{{ ticket.travelDate|date('d/m/Y') }}</div>
+                </td>
+                <td>
+                    <div class="label">Départ</div>
+                    <div class="value">{{ offer.departureTime|default('—') }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div class="label">Montant total</div>
+                    <div class="value">{{ total }} {{ ticket.currency }}</div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="footer">
+            <div class="status-badge">● Émis</div>
+            <div class="label">Émis le</div>
+            <div class="value">{{ issuedAt|date('d/m/Y H:i') }}</div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

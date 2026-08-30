@@ -11,6 +11,7 @@ use App\Dto\Public\PayPublicAgencyBookingDto;
 use App\Provider\PublicAgency\PublicAgencyBookingByTokenProvider;
 use App\Provider\PublicAgency\PublicAgencyBookingTicketProvider;
 use App\State\PublicAgency\CancelPublicAgencyBookingProcessor;
+use App\State\PublicAgency\CheckPublicAgencyPaymentProcessor;
 use App\State\PublicAgency\CreatePublicAgencyBookingProcessor;
 use App\State\PublicAgency\PayPublicAgencyBookingProcessor;
 
@@ -45,6 +46,17 @@ use App\State\PublicAgency\PayPublicAgencyBookingProcessor;
             output: PublicAgencyBookingPaymentResource::class,
             provider: PublicAgencyBookingByTokenProvider::class,
             processor: PayPublicAgencyBookingProcessor::class,
+            status: 200,
+        ),
+        new Post(
+            uriTemplate: '/public/agency/bookings/{publicToken}/pay/check-status',
+            uriVariables: ['publicToken'],
+            input: false,
+            deserialize: false,
+            validate: false,
+            output: PublicAgencyBookingPaymentResource::class,
+            provider: PublicAgencyBookingByTokenProvider::class,
+            processor: CheckPublicAgencyPaymentProcessor::class,
             status: 200,
         ),
         new Get(

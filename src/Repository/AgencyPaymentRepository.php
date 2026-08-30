@@ -36,4 +36,9 @@ class AgencyPaymentRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['providerTransactionId' => $transactionId]);
     }
+
+    public function findLatestForBooking(AgencyBooking $booking): ?AgencyPayment
+    {
+        return $this->findOneBy(['booking' => $booking], ['createdAt' => 'DESC']);
+    }
 }

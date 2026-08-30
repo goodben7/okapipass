@@ -14,6 +14,9 @@ parameters:
     flexpay_card_approve_url_default: 'https://okapi-pass-v2.vercel.app/payment/success?ref={ref}'
     flexpay_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app/payment/cancelled?ref={ref}'
     flexpay_card_decline_url_default: 'https://okapi-pass-v2.vercel.app/payment/failed?ref={ref}&reason={reason}'
+    flexpay_agency_card_approve_url_default: 'https://okapi-pass-v2.vercel.app/agency/booking/success?token={ref}'
+    flexpay_agency_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app/agency/booking/cancelled?token={ref}'
+    flexpay_agency_card_decline_url_default: 'https://okapi-pass-v2.vercel.app/agency/booking/failed?token={ref}&reason={reason}'
     agency_pass_validate_strict_default: '0'
 
 services:
@@ -65,3 +68,6 @@ services:
             $cardApproveUrl: '%env(default:flexpay_card_approve_url_default:FLEXPAY_CARD_APPROVE_URL)%'
             $cardCancelUrl: '%env(default:flexpay_card_cancel_url_default:FLEXPAY_CARD_CANCEL_URL)%'
             $cardDeclineUrl: '%env(default:flexpay_card_decline_url_default:FLEXPAY_CARD_DECLINE_URL)%'
+            $agencyCardApproveUrl: '%env(default:flexpay_agency_card_approve_url_default:FLEXPAY_AGENCY_CARD_APPROVE_URL)%'
+            $agencyCardCancelUrl: '%env(default:flexpay_agency_card_cancel_url_default:FLEXPAY_AGENCY_CARD_CANCEL_URL)%'
+            $agencyCardDeclineUrl: '%env(default:flexpay_agency_card_decline_url_default:FLEXPAY_AGENCY_CARD_DECLINE_URL)%'

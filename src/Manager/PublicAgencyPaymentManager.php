@@ -14,12 +14,16 @@ use App\Entity\AgencyTicket;
 use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
 use App\Exception\UnprocessableEntityException;
+use App\Message\CheckAgencyPaymentStatusMessage;
 use App\Repository\AgencyBookingRepository;
 use App\Repository\AgencyPaymentRepository;
+use App\Service\PublicAgency\PublicAgencyPaymentNotifier;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Messenger\Stamp\DelayStamp;
 
 final class PublicAgencyPaymentManager
 {
@@ -30,6 +34,8 @@ final class PublicAgencyPaymentManager
         private AgencyPricingService $pricing,
         private AgencyTicketIssuanceService $ticketIssuance,
         private AgencyFlexPayClientInterface $flexPay,
+        private PublicAgencyPaymentNotifier $notifier,
+        private MessageBusInterface $bus,
         private RequestStack $requestStack,
         private LoggerInterface $logger,
     ) {
@@ -93,6 +99,7 @@ final class PublicAgencyPaymentManager
 
         if ($response->isSuccess()) {
             $payment->setProviderTransactionId($response->transactionId);
+            $this->schedulePaymentStatusPoll($payment);
         } else {
             $payment->setStatus(AgencyPayment::STATUS_FAILED);
             $booking->setPaymentStatus(AgencyBooking::PAYMENT_STATUS_FAILED);
@@ -101,6 +108,83 @@ final class PublicAgencyPaymentManager
         $this->em->flush();
 
         return $this->toPaymentResource($booking, $payment);
+    }
+
+    public function checkPaymentByPublicToken(string $publicToken): PublicAgencyBookingPaymentResource
+    {
+        $booking = $this->requireOnlineBookingByToken($publicToken);
+        $payment = $this->payments->findOpenForBooking($booking)
+            ?? $this->payments->findLatestForBooking($booking);
+
+        if (!$payment instanceof AgencyPayment) {
+            throw new UnavailableDataException('No payment found for this booking.');
+        }
+
+        $this->refreshPaymentStatus($payment);
+        $this->em->refresh($booking);
+        $this->em->refresh($payment);
+
+        return $this->toPaymentResource($booking, $payment);
+    }
+
+    /**
+     * Poll FlexPay and finalize payment when possible.
+     * Returns true when payment reached a terminal state (PAID or FAILED).
+     */
+    public function refreshPaymentStatus(AgencyPayment $payment): bool
+    {
+        $payment = $this->payments->find($payment->getId());
+        if (!$payment instanceof AgencyPayment) {
+            return false;
+        }
+
+        if (\in_array($payment->getStatus(), [AgencyPayment::STATUS_PAID, AgencyPayment::STATUS_FAILED], true)) {
+            return true;
+        }
+
+        $transactionId = $payment->getProviderTransactionId();
+        if (null === $transactionId || '' === trim($transactionId)) {
+            return false;
+        }
+
+        try {
+            $check = $this->flexPay->checkStatus((string) $transactionId);
+            $providerResponse = $payment->getProviderResponse() ?? [];
+            $providerResponse['poll'] = $check->raw;
+            $payment->setProviderResponse($providerResponse);
+
+            $normalizedStatus = \is_string($check->status)
+                ? \strtoupper(\trim($check->status))
+                : $check->status;
+
+            if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
+                $hadTicket = null !== $payment->getTicket();
+                $ticket = $this->fulfillSuccessfulPayment($payment);
+                if (!$hadTicket) {
+                    $this->notifier->notifyPaid($payment, $ticket);
+                }
+
+                return true;
+            }
+
+            if (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+                $this->markFailed($payment);
+                $this->em->flush();
+
+                return true;
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error('agency.payment.poll.exception', [
+                'paymentId' => $payment->getId(),
+                'transactionId' => $transactionId,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $this->em->flush();
+
+        return false;
     }
 
     public function getTicketByPublicToken(string $publicToken): PublicAgencyTicketResource
@@ -168,19 +252,8 @@ final class PublicAgencyPaymentManager
         }
 
         try {
-            $check = $this->flexPay->checkStatus((string) $transactionId);
-            $providerResponse = $payment->getProviderResponse() ?? [];
-            $providerResponse['check'] = $check->raw;
-            $payment->setProviderResponse($providerResponse);
-
-            $normalizedStatus = \is_string($check->status)
-                ? \strtoupper(\trim($check->status))
-                : $check->status;
-
-            if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
-                $this->fulfillSuccessfulPayment($payment);
-            } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
-                $this->markFailed($payment);
+            if (null !== $transactionId && '' !== \trim((string) $transactionId)) {
+                $this->refreshPaymentStatus($payment);
             }
         } catch (\Throwable $e) {
             $this->logger->error('agency.flexpay.webhook.check_status.exception', [
@@ -322,6 +395,7 @@ final class PublicAgencyPaymentManager
                 'destination' => (string) $offer->getDestination(),
                 'departureTime' => (string) $offer->getDepartureTime(),
             ],
+            pdfUrl: \sprintf('/api/public/agency/bookings/%s/ticket/pdf', $booking->getPublicToken()),
         );
     }
 
@@ -423,5 +497,18 @@ final class PublicAgencyPaymentManager
         }
 
         return null;
+    }
+
+    private function schedulePaymentStatusPoll(AgencyPayment $payment): void
+    {
+        $paymentId = (string) $payment->getId();
+        if ('' === $paymentId) {
+            return;
+        }
+
+        $this->bus->dispatch(
+            new CheckAgencyPaymentStatusMessage($paymentId),
+            [new DelayStamp(20000)],
+        );
     }
 }
