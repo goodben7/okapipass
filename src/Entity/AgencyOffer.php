@@ -72,7 +72,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'destination' => 'ipartial',
     'transport.id' => 'exact',
 ])]
-#[ApiFilter(BooleanFilter::class, properties: ['active'])]
+#[ApiFilter(BooleanFilter::class, properties: ['active', 'onlineSales'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'label', 'ticketPrice', 'departureTime'])]
 class AgencyOffer implements RessourceInterface, AgencyScopedInterface
 {
@@ -137,6 +137,18 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     #[ORM\Column(name: 'AO_ACTIVE')]
     #[Groups(['agency_offer:get'])]
     private bool $active = true;
+
+    #[ORM\Column(name: 'AO_ONLINE_SALES')]
+    #[Groups(['agency_offer:get'])]
+    private bool $onlineSales = false;
+
+    /** Minutes a seat is held after an online booking before auto-cancel. */
+    #[ORM\Column(name: 'AO_BOOKING_HOLD_MINUTES')]
+    #[Assert\Positive]
+    #[Groups(['agency_offer:get'])]
+    private int $bookingHoldMinutes = self::DEFAULT_BOOKING_HOLD_MINUTES;
+
+    public const int DEFAULT_BOOKING_HOLD_MINUTES = 15;
 
     #[ORM\Column(name: 'AO_CREATED_AT')]
     #[Groups(['agency_offer:get'])]
@@ -267,6 +279,30 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     public function setActive(bool $active): static
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function isOnlineSales(): bool
+    {
+        return $this->onlineSales;
+    }
+
+    public function setOnlineSales(bool $onlineSales): static
+    {
+        $this->onlineSales = $onlineSales;
+
+        return $this;
+    }
+
+    public function getBookingHoldMinutes(): int
+    {
+        return $this->bookingHoldMinutes;
+    }
+
+    public function setBookingHoldMinutes(int $bookingHoldMinutes): static
+    {
+        $this->bookingHoldMinutes = $bookingHoldMinutes;
 
         return $this;
     }

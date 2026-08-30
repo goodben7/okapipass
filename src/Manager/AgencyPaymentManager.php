@@ -54,6 +54,7 @@ class AgencyPaymentManager
         $payment->setCurrency($ticket->getCurrency());
         $payment->setMethod((string) $dto->method);
         $payment->setStatus(AgencyPayment::STATUS_PAID);
+        $payment->setChannel(AgencyPayment::CHANNEL_DESK);
         $payment->setPaidAt(new \DateTimeImmutable('now'));
         $payment->setCollectedBy($this->agencyContext->getUser());
         $payment->setNotes($dto->notes);

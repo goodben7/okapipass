@@ -52,6 +52,8 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+    App\Contract\AgencyFlexPayClientInterface: '@App\Service\FlexPayGateway'
+
     App\Service\FlexPayGateway:
         arguments:
             $merchantId: '%env(FLEXPAY_MERCHANT_ID)%'

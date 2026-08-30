@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\AgencyBooking;
 use App\Entity\AgencyPayment;
 use App\Entity\AgencyTicket;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -21,5 +22,18 @@ class AgencyPaymentRepository extends ServiceEntityRepository
             'ticket' => $ticket,
             'status' => AgencyPayment::STATUS_PAID,
         ]);
+    }
+
+    public function findOpenForBooking(AgencyBooking $booking): ?AgencyPayment
+    {
+        return $this->findOneBy([
+            'booking' => $booking,
+            'status' => AgencyPayment::STATUS_PENDING,
+        ]);
+    }
+
+    public function findOneByProviderTransactionId(string $transactionId): ?AgencyPayment
+    {
+        return $this->findOneBy(['providerTransactionId' => $transactionId]);
     }
 }

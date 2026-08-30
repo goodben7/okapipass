@@ -3,6 +3,7 @@
 namespace App\Dto\Agency;
 
 use App\Entity\Agency;
+use App\Entity\AgencyOffer;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class CreateAgencyOfferDto
@@ -40,6 +41,11 @@ class CreateAgencyOfferDto
         public ?int $durationMinutes = null,
 
         public ?bool $active = true,
+
+        public ?bool $onlineSales = false,
+
+        #[Assert\Positive]
+        public ?int $bookingHoldMinutes = AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES,
     ) {
     }
 }

@@ -91,6 +91,8 @@ use Symfony\Component\Validator\Constraints as Assert;
     'seatNumber' => 'exact',
     'offer.id' => 'exact',
     'okapiPassRef' => 'exact',
+    'channel' => 'exact',
+    'paymentStatus' => 'exact',
 ])]
 #[ApiFilter(DateFilter::class, properties: ['travelDate', 'createdAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'travelDate', 'passengerName'])]
@@ -102,6 +104,15 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     public const string STATUS_CONFIRMED = 'CONFIRMED';
     public const string STATUS_CANCELLED = 'CANCELLED';
     public const string STATUS_COMPLETED = 'COMPLETED';
+
+    public const string CHANNEL_DESK = 'DESK';
+    public const string CHANNEL_ONLINE = 'ONLINE';
+
+    public const string PAYMENT_STATUS_UNPAID = 'UNPAID';
+    public const string PAYMENT_STATUS_PENDING = 'PENDING';
+    public const string PAYMENT_STATUS_PAID = 'PAID';
+    public const string PAYMENT_STATUS_FAILED = 'FAILED';
+    public const string PAYMENT_STATUS_REFUNDED = 'REFUNDED';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -149,6 +160,23 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_booking:get'])]
     private string $status = self::STATUS_PENDING;
 
+    #[ORM\Column(name: 'AB_CHANNEL', length: 10)]
+    #[Assert\Choice(callback: [self::class, 'getChannelsAsList'])]
+    #[Groups(['agency_booking:get'])]
+    private string $channel = self::CHANNEL_DESK;
+
+    #[ORM\Column(name: 'AB_EXPIRES_AT', type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    #[Groups(['agency_booking:get'])]
+    private ?\DateTimeImmutable $expiresAt = null;
+
+    #[ORM\Column(name: 'AB_PUBLIC_TOKEN', length: 64, nullable: true, unique: true)]
+    private ?string $publicToken = null;
+
+    #[ORM\Column(name: 'AB_PAYMENT_STATUS', length: 12)]
+    #[Assert\Choice(callback: [self::class, 'getPaymentStatusesAsList'])]
+    #[Groups(['agency_booking:get'])]
+    private string $paymentStatus = self::PAYMENT_STATUS_UNPAID;
+
     #[ORM\Column(name: 'AB_OKAPI_PASS_REF', length: 40, nullable: true)]
     #[Groups(['agency_booking:get', 'agency_ticket:get'])]
     private ?string $okapiPassRef = null;
@@ -172,6 +200,24 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
             self::STATUS_CONFIRMED,
             self::STATUS_CANCELLED,
             self::STATUS_COMPLETED,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function getChannelsAsList(): array
+    {
+        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE];
+    }
+
+    /** @return list<string> */
+    public static function getPaymentStatusesAsList(): array
+    {
+        return [
+            self::PAYMENT_STATUS_UNPAID,
+            self::PAYMENT_STATUS_PENDING,
+            self::PAYMENT_STATUS_PAID,
+            self::PAYMENT_STATUS_FAILED,
+            self::PAYMENT_STATUS_REFUNDED,
         ];
     }
 
@@ -272,6 +318,59 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getChannel(): string
+    {
+        return $this->channel;
+    }
+
+    public function setChannel(string $channel): static
+    {
+        $this->channel = $channel;
+
+        return $this;
+    }
+
+    public function getExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function setExpiresAt(?\DateTimeImmutable $expiresAt): static
+    {
+        $this->expiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    public function isExpired(): bool
+    {
+        return null !== $this->expiresAt && $this->expiresAt < new \DateTimeImmutable('now');
+    }
+
+    public function getPublicToken(): ?string
+    {
+        return $this->publicToken;
+    }
+
+    public function setPublicToken(?string $publicToken): static
+    {
+        $this->publicToken = $publicToken;
+
+        return $this;
+    }
+
+    public function getPaymentStatus(): string
+    {
+        return $this->paymentStatus;
+    }
+
+    public function setPaymentStatus(string $paymentStatus): static
+    {
+        $this->paymentStatus = $paymentStatus;
 
         return $this;
     }

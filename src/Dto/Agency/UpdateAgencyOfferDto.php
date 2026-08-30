@@ -2,6 +2,7 @@
 
 namespace App\Dto\Agency;
 
+use App\Entity\AgencyOffer;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class UpdateAgencyOfferDto
@@ -31,6 +32,11 @@ class UpdateAgencyOfferDto
         public ?int $durationMinutes = null,
 
         public ?bool $active = null,
+
+        public ?bool $onlineSales = null,
+
+        #[Assert\Positive]
+        public ?int $bookingHoldMinutes = null,
     ) {
     }
 }

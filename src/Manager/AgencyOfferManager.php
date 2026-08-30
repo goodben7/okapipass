@@ -56,6 +56,8 @@ class AgencyOfferManager
         $offer->setDepartureTime((string) $dto->departureTime);
         $offer->setDurationMinutes((int) $dto->durationMinutes);
         $offer->setActive($dto->active ?? true);
+        $offer->setOnlineSales($dto->onlineSales ?? false);
+        $offer->setBookingHoldMinutes($dto->bookingHoldMinutes ?? AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES);
 
         $this->em->persist($offer);
         $this->em->flush();
@@ -102,6 +104,12 @@ class AgencyOfferManager
         }
         if (null !== $dto->active) {
             $offer->setActive($dto->active);
+        }
+        if (null !== $dto->onlineSales) {
+            $offer->setOnlineSales($dto->onlineSales);
+        }
+        if (null !== $dto->bookingHoldMinutes) {
+            $offer->setBookingHoldMinutes($dto->bookingHoldMinutes);
         }
 
         $this->em->flush();

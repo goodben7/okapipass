@@ -18,6 +18,7 @@ use App\Repository\AgencyPaymentRepository;
 use App\State\Agency\AgencyScopedItemProvider;
 use App\State\Agency\CreateAgencyPaymentProcessor;
 use App\State\Agency\RefundAgencyPaymentProcessor;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -74,9 +75,16 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public const string METHOD_MOBILE_MONEY = 'MOBILE_MONEY';
     public const string METHOD_CARD = 'CARD';
 
+    public const string STATUS_PENDING = 'PENDING';
     public const string STATUS_PAID = 'PAID';
+    public const string STATUS_FAILED = 'FAILED';
     public const string STATUS_REFUNDED = 'REFUNDED';
     public const string STATUS_CANCELLED = 'CANCELLED';
+
+    public const string PROVIDER_FLEXPAY = 'FLEXPAY';
+
+    public const string CHANNEL_DESK = 'DESK';
+    public const string CHANNEL_ONLINE = 'ONLINE';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -91,9 +99,14 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     private ?Agency $agency = null;
 
     #[ORM\ManyToOne]
-    #[ORM\JoinColumn(name: 'AP_TICKET', nullable: false, referencedColumnName: 'AK_ID')]
+    #[ORM\JoinColumn(name: 'AP_TICKET', nullable: true, referencedColumnName: 'AK_ID')]
     #[Groups(['agency_payment:get'])]
     private ?AgencyTicket $ticket = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AP_BOOKING', nullable: true, referencedColumnName: 'AB_ID')]
+    #[Groups(['agency_payment:get'])]
+    private ?AgencyBooking $booking = null;
 
     #[ORM\Column(name: 'AP_REFERENCE', length: 30)]
     #[Groups(['agency_payment:get'])]
@@ -116,6 +129,23 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     #[Assert\Choice(callback: [self::class, 'getStatusesAsList'])]
     #[Groups(['agency_payment:get'])]
     private string $status = self::STATUS_PAID;
+
+    #[ORM\Column(name: 'AP_CHANNEL', length: 10)]
+    #[Assert\Choice(callback: [self::class, 'getChannelsAsList'])]
+    #[Groups(['agency_payment:get'])]
+    private string $channel = self::CHANNEL_DESK;
+
+    #[ORM\Column(name: 'AP_PROVIDER', length: 30, nullable: true)]
+    #[Groups(['agency_payment:get'])]
+    private ?string $provider = null;
+
+    #[ORM\Column(name: 'AP_PROVIDER_TX_ID', length: 120, nullable: true)]
+    #[Groups(['agency_payment:get'])]
+    private ?string $providerTransactionId = null;
+
+    #[ORM\Column(name: 'AP_PROVIDER_RESPONSE', type: Types::JSON, nullable: true)]
+    #[Groups(['agency_payment:get'])]
+    private ?array $providerResponse = null;
 
     #[ORM\Column(name: 'AP_PAID_AT', nullable: true)]
     #[Groups(['agency_payment:get'])]
@@ -145,7 +175,19 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
 
     public static function getStatusesAsList(): array
     {
-        return [self::STATUS_PAID, self::STATUS_REFUNDED, self::STATUS_CANCELLED];
+        return [
+            self::STATUS_PENDING,
+            self::STATUS_PAID,
+            self::STATUS_FAILED,
+            self::STATUS_REFUNDED,
+            self::STATUS_CANCELLED,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function getChannelsAsList(): array
+    {
+        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE];
     }
 
     public function getId(): ?string
@@ -173,6 +215,18 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public function setTicket(?AgencyTicket $ticket): static
     {
         $this->ticket = $ticket;
+
+        return $this;
+    }
+
+    public function getBooking(): ?AgencyBooking
+    {
+        return $this->booking;
+    }
+
+    public function setBooking(?AgencyBooking $booking): static
+    {
+        $this->booking = $booking;
 
         return $this;
     }
@@ -237,6 +291,54 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
         return $this;
     }
 
+    public function getChannel(): string
+    {
+        return $this->channel;
+    }
+
+    public function setChannel(string $channel): static
+    {
+        $this->channel = $channel;
+
+        return $this;
+    }
+
+    public function getProvider(): ?string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(?string $provider): static
+    {
+        $this->provider = $provider;
+
+        return $this;
+    }
+
+    public function getProviderTransactionId(): ?string
+    {
+        return $this->providerTransactionId;
+    }
+
+    public function setProviderTransactionId(?string $providerTransactionId): static
+    {
+        $this->providerTransactionId = $providerTransactionId;
+
+        return $this;
+    }
+
+    public function getProviderResponse(): ?array
+    {
+        return $this->providerResponse;
+    }
+
+    public function setProviderResponse(?array $providerResponse): static
+    {
+        $this->providerResponse = $providerResponse;
+
+        return $this;
+    }
+
     public function getPaidAt(): ?\DateTimeImmutable
     {
         return $this->paidAt;
@@ -295,6 +397,8 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     {
         $now = new \DateTimeImmutable('now');
         $this->createdAt ??= $now;
-        $this->paidAt ??= $now;
+        if (self::STATUS_PAID === $this->status) {
+            $this->paidAt ??= $now;
+        }
     }
 }

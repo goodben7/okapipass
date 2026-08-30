@@ -2,6 +2,8 @@
 
 namespace App\Service;
 
+use App\Contract\AgencyFlexPayClientInterface;
+use App\Entity\AgencyPayment;
 use App\Entity\Payment;
 use App\Model\GatewayResponse;
 use App\Model\PaymentGatewayInterface;
@@ -9,7 +11,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
-class FlexPayGateway implements PaymentGatewayInterface
+class FlexPayGateway implements PaymentGatewayInterface, AgencyFlexPayClientInterface
 {
     public function __construct(
         private HttpClientInterface $client,
@@ -32,6 +34,226 @@ class FlexPayGateway implements PaymentGatewayInterface
         }
 
         return $this->createMobileMoneyPayment($payment);
+    }
+
+    public function initiate(AgencyPayment $payment, string $phone): GatewayResponse
+    {
+        if (AgencyPayment::METHOD_CARD === $payment->getMethod()) {
+            return $this->createAgencyCardPayment($payment);
+        }
+
+        return $this->createAgencyMobileMoneyPayment($payment, $phone);
+    }
+
+    public function buildAgencyCardPaymentForm(AgencyPayment $payment, string $ticketRef): array
+    {
+        $token = \trim($this->token);
+        $token = \trim($token, "\"'`");
+        $tokenNoBearer = \preg_replace('/^\s*Bearer\s+/i', '', $token) ?? $token;
+        $authorization = 'Bearer ' . $tokenNoBearer;
+
+        $cardPayUrl = $this->normalizeUrl($this->cardPayUrl);
+        $callbackUrl = $this->normalizeUrl($this->callbackUrl);
+
+        $approveUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardApproveUrl),
+            ['ref' => $ticketRef, 'reason' => ''],
+        );
+        $cancelUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardCancelUrl),
+            ['ref' => $ticketRef, 'reason' => ''],
+        );
+        $declineUrl = $this->expandUrlTemplate(
+            $this->normalizeUrl($this->cardDeclineUrl),
+            ['ref' => $ticketRef, 'reason' => ''],
+        );
+
+        return [
+            'action' => $cardPayUrl,
+            'fields' => [
+                'authorization' => $authorization,
+                'merchant' => $this->merchantId,
+                'reference' => $this->buildAgencyCardReference($payment),
+                'amount' => (string) $payment->getAmount(),
+                'currency' => $payment->getCurrency(),
+                'description' => 'Agency booking ' . $payment->getReference(),
+                'paymentWay' => 'card',
+                'type' => 'card',
+                'callback_url' => $callbackUrl,
+                'approve_url' => $approveUrl,
+                'cancel_url' => $cancelUrl,
+                'decline_url' => $declineUrl,
+            ],
+        ];
+    }
+
+    private function createAgencyMobileMoneyPayment(AgencyPayment $payment, string $phone): GatewayResponse
+    {
+        $authorization = \str_starts_with($this->token, 'Bearer ')
+            ? $this->token
+            : 'Bearer ' . $this->token;
+
+        $paymentUrl = $this->normalizeUrl($this->paymentUrl);
+        $phone = \preg_replace('/\D+/', '', $phone) ?? '';
+
+        $payload = [
+            'merchant' => $this->merchantId,
+            'type' => '1',
+            'reference' => (string) $payment->getReference(),
+            'amount' => (string) $payment->getAmount(),
+            'currency' => $payment->getCurrency(),
+            'description' => 'Agency booking ' . $payment->getReference(),
+            'callbackUrl' => $this->callbackUrl,
+            'phone' => $phone,
+        ];
+
+        $this->logger->info('flexpay.agency.create_payment.request', [
+            'paymentId' => $payment->getId(),
+            'reference' => $payment->getReference(),
+            'amount' => $payment->getAmount(),
+            'currency' => $payment->getCurrency(),
+        ]);
+
+        try {
+            $response = $this->client->request('POST', $paymentUrl, [
+                'headers' => ['Authorization' => $authorization],
+                'json' => $payload,
+            ]);
+            $statusCode = $response->getStatusCode();
+            $data = $response->toArray(false);
+        } catch (\Throwable $e) {
+            $this->logger->error('flexpay.agency.create_payment.exception', [
+                'paymentId' => $payment->getId(),
+                'reference' => $payment->getReference(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            return new GatewayResponse(
+                success: false,
+                transactionId: null,
+                status: null,
+                message: $e->getMessage(),
+                raw: null,
+            );
+        }
+
+        $code = $data['code'] ?? null;
+        $success = $code === '0' || $code === 0;
+
+        $this->logger->info('flexpay.agency.create_payment.response', [
+            'paymentId' => $payment->getId(),
+            'reference' => $payment->getReference(),
+            'httpStatus' => $statusCode,
+            'orderNumber' => $data['orderNumber'] ?? null,
+        ]);
+
+        return new GatewayResponse(
+            success: $success,
+            transactionId: $data['orderNumber'] ?? null,
+            status: $data['status'] ?? $data['message'] ?? null,
+            message: $data['message'] ?? (\is_string($code) ? $code : null),
+            raw: $data,
+        );
+    }
+
+    private function createAgencyCardPayment(AgencyPayment $payment): GatewayResponse
+    {
+        $token = \trim($this->token);
+        $token = \trim($token, "\"'`");
+        $tokenNoBearer = \preg_replace('/^\s*Bearer\s+/i', '', $token) ?? $token;
+        $authorization = 'Bearer ' . $tokenNoBearer;
+
+        $cardPayUrl = $this->normalizeUrl($this->cardPayUrl);
+        $callbackUrl = $this->normalizeUrl($this->callbackUrl);
+        $approveUrl = $this->normalizeUrl($this->cardApproveUrl);
+        $cancelUrl = $this->normalizeUrl($this->cardCancelUrl);
+        $declineUrl = $this->normalizeUrl($this->cardDeclineUrl);
+        $cardReference = $this->buildAgencyCardReference($payment);
+
+        $payload = [
+            'authorization' => $authorization,
+            'merchant' => $this->merchantId,
+            'reference' => $cardReference,
+            'amount' => (string) $payment->getAmount(),
+            'currency' => $payment->getCurrency(),
+            'description' => 'Agency booking ' . $payment->getReference(),
+            'callback_url' => $callbackUrl,
+            'approve_url' => $approveUrl,
+            'cancel_url' => $cancelUrl,
+            'decline_url' => $declineUrl,
+        ];
+
+        try {
+            $response = $this->client->request('POST', $cardPayUrl, [
+                'headers' => ['Content-Type' => 'application/x-www-form-urlencoded'],
+                'body' => \http_build_query($payload, '', '&', \PHP_QUERY_RFC3986),
+            ]);
+            $statusCode = $response->getStatusCode();
+        } catch (\Throwable $e) {
+            return new GatewayResponse(
+                success: false,
+                transactionId: null,
+                status: null,
+                message: $e->getMessage(),
+                raw: null,
+            );
+        }
+
+        $parsed = $this->decodeJsonResponse($response);
+        $data = $parsed['data'];
+
+        if (null === $data && 200 === $statusCode) {
+            return new GatewayResponse(
+                success: true,
+                transactionId: null,
+                status: 'HTML',
+                message: 'HTML payment page returned by FlexPay.',
+                raw: [
+                    'httpStatus' => $statusCode,
+                    'contentType' => $parsed['contentType'],
+                    'mode' => 'HTML_FORM',
+                    'formUrl' => \sprintf('/api/public/agency/payments/%s/card/form', (string) $payment->getId()),
+                ],
+            );
+        }
+
+        if (null === $data) {
+            return new GatewayResponse(
+                success: false,
+                transactionId: null,
+                status: null,
+                message: 'Invalid JSON response from FlexPay card endpoint.',
+                raw: $parsed,
+            );
+        }
+
+        $code = $data['code'] ?? null;
+        $success = $code === '0' || $code === 0;
+
+        return new GatewayResponse(
+            success: $success,
+            transactionId: $data['orderNumber'] ?? null,
+            status: $data['status'] ?? $data['message'] ?? null,
+            message: $data['message'] ?? (\is_string($code) ? $code : null),
+            raw: $data,
+        );
+    }
+
+    private function buildAgencyCardReference(AgencyPayment $payment): string
+    {
+        $reference = $payment->getId();
+        if (null !== $reference && '' !== \trim($reference)) {
+            $reference = 'ABP-' . $reference;
+        } else {
+            $fallback = (string) $payment->getReference();
+            $fallback = \preg_replace('/[^A-Za-z0-9_-]+/', '', $fallback) ?: 'ABP';
+            $reference = 'ABP-' . $fallback;
+        }
+
+        $reference = \preg_replace('/[^A-Za-z0-9_-]+/', '', $reference) ?: 'ABP';
+
+        return \substr($reference, 0, 25);
     }
 
     private function createMobileMoneyPayment(Payment $payment): GatewayResponse

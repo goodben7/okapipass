@@ -5,6 +5,7 @@ namespace App\Manager;
 use App\Domain\Agency\AgencyNotificationTextBuilder;
 use App\Domain\Agency\AgencyPricingService;
 use App\Domain\Agency\AgencyQrPayloadBuilder;
+use App\Domain\Agency\AgencyTicketIssuanceService;
 use App\Domain\Agency\AgencyTicketReferenceGenerator;
 use App\Domain\Agency\SeatOccupancyService;
 use App\Dto\Agency\AgencyBookingCreateResult;
@@ -39,6 +40,7 @@ class AgencyBookingManager
         private AgencyQrPayloadBuilder $qrPayloadBuilder,
         private AgencyNotificationTextBuilder $notificationTexts,
         private AgencySmsSenderInterface $smsSender,
+        private AgencyTicketIssuanceService $ticketIssuance,
     ) {
     }
 
@@ -69,6 +71,8 @@ class AgencyBookingManager
                 throw new UnprocessableEntityException('Invalid initial booking status.');
             }
             $booking->setStatus($status);
+            $booking->setChannel(AgencyBooking::CHANNEL_DESK);
+            $booking->setPaymentStatus(AgencyBooking::PAYMENT_STATUS_UNPAID);
 
             $this->em->persist($booking);
             $this->em->flush();
@@ -176,68 +180,7 @@ class AgencyBookingManager
     {
         $this->agencyContext->assertOwns($booking->getAgency());
 
-        if ($booking->isCancelled()) {
-            throw new UnprocessableEntityException('Cannot issue ticket for a cancelled booking.');
-        }
-
-        if (null !== $booking->getTicket()) {
-            // Idempotent: return existing ticket (AC-03)
-            return $booking->getTicket();
-        }
-
-        $offer = $booking->getOffer();
-        $this->assertOfferSellable($offer);
-
-        $this->em->beginTransaction();
-        try {
-            $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            // Re-validate seat still held by this booking
-            $this->occupancy->assertSeatSelectable(
-                $offer,
-                $booking->getTravelDate(),
-                $booking->getSeatNumber(),
-                $booking->getId(),
-            );
-
-            $quote = $this->pricing->quote($booking->getOkapiPassRef());
-            $reference = $this->references->next($booking->getAgency());
-
-            $ticket = new AgencyTicket();
-            $ticket->setAgency($booking->getAgency());
-            $ticket->setOffer($offer);
-            $ticket->setReference($reference);
-            $ticket->setPassengerName((string) $booking->getPassengerName());
-            $ticket->setPassengerId((string) $booking->getPassengerId());
-            $ticket->setPassengerPhone((string) $booking->getPassengerPhone());
-            $ticket->setSeatNumber((string) $booking->getSeatNumber());
-            $ticket->setTravelDate($booking->getTravelDate());
-            $ticket->setTicketPrice((int) $offer->getTicketPrice());
-            $ticket->setPassPrice($quote['passPrice']);
-            $ticket->setCurrency($offer->getCurrency());
-            $ticket->setOkapiPassRef($booking->getOkapiPassRef());
-            $ticket->setHasExistingPass($quote['hasExistingPass']);
-            $ticket->setStatus(AgencyTicket::STATUS_ISSUED);
-            $ticket->setQrPayload($this->qrPayloadBuilder->build($ticket));
-            // Link booking after reference allocation (avoids flush of unpersisted ticket).
-            $ticket->setBooking($booking);
-
-            $booking->setStatus(AgencyBooking::STATUS_CONFIRMED);
-            $booking->setTicket($ticket);
-
-            $this->em->persist($ticket);
-            $this->em->flush();
-            $this->em->commit();
-        } catch (\Throwable $e) {
-            $this->em->rollback();
-            throw $e;
-        }
-
-        $this->smsSender->send(
-            (string) $ticket->getPassengerPhone(),
-            $this->notificationTexts->ticketSms($ticket),
-        );
-
-        return $ticket;
+        return $this->ticketIssuance->issueFromBooking($booking);
     }
 
     public function createManualTicket(CreateAgencyTicketDto $dto): AgencyTicketCreateResult
@@ -358,13 +301,7 @@ class AgencyBookingManager
 
     private function assertOfferSellable(AgencyOffer $offer): void
     {
-        if (!$offer->isActive()) {
-            throw new UnprocessableEntityException('Offer is not active.');
-        }
-        $transport = $offer->getTransport();
-        if (null === $transport || !$transport->isActiveForSale()) {
-            throw new UnprocessableEntityException('Transport is not ACTIVE — sales are blocked.');
-        }
+        $this->ticketIssuance->assertOfferSellable($offer);
     }
 
     private function resolveOffer(string $ref, ?string $agencyId): AgencyOffer

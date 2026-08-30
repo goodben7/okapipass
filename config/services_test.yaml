@@ -1,0 +1,3 @@
+services:
+    App\Contract\AgencyFlexPayClientInterface:
+        class: App\Tests\Stub\StubAgencyFlexPayClient
