@@ -7,6 +7,7 @@ use App\Domain\Agency\AgencyPricingService;
 use App\Domain\Agency\AgencyQrPayloadBuilder;
 use App\Domain\Agency\AgencyTicketIssuanceService;
 use App\Domain\Agency\AgencyTicketReferenceGenerator;
+use App\Domain\Agency\AgencyTransportAvailabilityService;
 use App\Domain\Agency\SeatOccupancyService;
 use App\Dto\Agency\AgencyBookingCreateResult;
 use App\Dto\Agency\AgencyTicketCreateResult;
@@ -17,6 +18,7 @@ use App\Dto\Agency\UpdateAgencyTicketSeatDto;
 use App\Entity\AgencyBooking;
 use App\Entity\AgencyOffer;
 use App\Entity\AgencyTicket;
+use App\Entity\AgencyTransport;
 use App\Contract\AgencySmsSenderInterface;
 use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
@@ -41,6 +43,7 @@ class AgencyBookingManager
         private AgencyNotificationTextBuilder $notificationTexts,
         private AgencySmsSenderInterface $smsSender,
         private AgencyTicketIssuanceService $ticketIssuance,
+        private AgencyTransportAvailabilityService $transportAvailability,
     ) {
     }
 
@@ -51,6 +54,7 @@ class AgencyBookingManager
         $this->assertOfferSellable($offer);
 
         $travelDate = $this->parseDate((string) $dto->travelDate);
+        $this->assertTransportAvailableForTravel($offer, $travelDate);
 
         $this->em->beginTransaction();
         try {
@@ -109,6 +113,7 @@ class AgencyBookingManager
 
         if (null !== $dto->travelDate) {
             $travelDate = $this->parseDate($dto->travelDate);
+            $this->assertTransportAvailableForTravel($offer, $travelDate);
             $seatChanged = true;
         }
         if (null !== $dto->seatNumber) {
@@ -189,6 +194,7 @@ class AgencyBookingManager
         $offer = $this->resolveOffer((string) $dto->offer, $agency->getId());
         $this->assertOfferSellable($offer);
         $travelDate = $this->parseDate((string) $dto->travelDate);
+        $this->assertTransportAvailableForTravel($offer, $travelDate);
 
         $this->em->beginTransaction();
         try {
@@ -302,6 +308,14 @@ class AgencyBookingManager
     private function assertOfferSellable(AgencyOffer $offer): void
     {
         $this->ticketIssuance->assertOfferSellable($offer);
+    }
+
+    private function assertTransportAvailableForTravel(AgencyOffer $offer, \DateTimeImmutable $travelDate): void
+    {
+        $transport = $offer->getTransport();
+        if ($transport instanceof AgencyTransport) {
+            $this->transportAvailability->assertAvailableForTravelDate($transport, $travelDate);
+        }
     }
 
     private function resolveOffer(string $ref, ?string $agencyId): AgencyOffer

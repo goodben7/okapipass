@@ -17,6 +17,7 @@ use App\Exception\UnprocessableEntityException;
 use App\Repository\AgencyOfferRepository;
 use App\Repository\AgencyTicketRepository;
 use App\Repository\AgencyTransportRepository;
+use App\Manager\AgencyDriverManager;
 use App\Service\Agency\AgencyContext;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -29,6 +30,7 @@ class AgencyEmbarkationManager
         private AgencyTransportRepository $transports,
         private AgencyTicketRepository $tickets,
         private AgencyPricingService $pricing,
+        private AgencyDriverManager $drivers,
     ) {
     }
 
@@ -46,6 +48,7 @@ class AgencyEmbarkationManager
         $embarkation->setDepartureDate($this->parseDate((string) $dto->departureDate));
         $embarkation->setDepartureTime((string) $dto->departureTime);
         $embarkation->setNotes($dto->notes);
+        $embarkation->setDriver($this->drivers->resolveForAssignment($dto->driver, $agency->getId()));
         $embarkation->setStatus(AgencyEmbarkation::STATUS_PLANNED);
 
         $this->em->persist($embarkation);

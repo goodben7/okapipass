@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\AgencyBooking;
 use App\Entity\AgencyPayment;
+use App\Entity\AgencyRentalContract;
 use App\Entity\AgencyTicket;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -40,5 +41,26 @@ class AgencyPaymentRepository extends ServiceEntityRepository
     public function findLatestForBooking(AgencyBooking $booking): ?AgencyPayment
     {
         return $this->findOneBy(['booking' => $booking], ['createdAt' => 'DESC']);
+    }
+
+    public function findPaidForRentalContract(AgencyRentalContract $contract): ?AgencyPayment
+    {
+        return $this->findOneBy([
+            'rentalContract' => $contract,
+            'status' => AgencyPayment::STATUS_PAID,
+        ]);
+    }
+
+    public function findOpenForRentalContract(AgencyRentalContract $contract): ?AgencyPayment
+    {
+        return $this->findOneBy([
+            'rentalContract' => $contract,
+            'status' => AgencyPayment::STATUS_PENDING,
+        ]);
+    }
+
+    public function findLatestForRentalContract(AgencyRentalContract $contract): ?AgencyPayment
+    {
+        return $this->findOneBy(['rentalContract' => $contract], ['createdAt' => 'DESC']);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Agency;
+use App\Entity\AgencyDriver;
 use App\Entity\AgencyEmbarkation;
 use App\Entity\AgencyOffer;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -22,5 +23,23 @@ class AgencyEmbarkationRepository extends ServiceEntityRepository
             'offer' => $offer,
             'departureDate' => $date,
         ], ['createdAt' => 'DESC']);
+    }
+
+    /**
+     * @return list<AgencyEmbarkation>
+     */
+    public function findRecentByDriver(AgencyDriver $driver, int $limit): array
+    {
+        /** @var list<AgencyEmbarkation> $rows */
+        $rows = $this->createQueryBuilder('e')
+            ->where('e.driver = :driver')
+            ->setParameter('driver', $driver)
+            ->orderBy('e.departureDate', 'DESC')
+            ->addOrderBy('e.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
     }
 }

@@ -15,6 +15,11 @@ final class AgencyPermission
     public const string PAYMENT_WRITE = 'payment:write';
     public const string REFUND_WRITE = 'refund:write';
     public const string STAFF_WRITE = 'staff:write';
+    public const string FLEET_READ = 'fleet:read';
+    public const string FLEET_WRITE = 'fleet:write';
+    public const string DRIVER_WRITE = 'driver:write';
+    public const string MAINTENANCE_WRITE = 'maintenance:write';
+    public const string RENTAL_WRITE = 'rental:write';
 
     /**
      * @return list<string>
@@ -29,6 +34,11 @@ final class AgencyPermission
             self::PAYMENT_WRITE,
             self::REFUND_WRITE,
             self::STAFF_WRITE,
+            self::FLEET_READ,
+            self::FLEET_WRITE,
+            self::DRIVER_WRITE,
+            self::MAINTENANCE_WRITE,
+            self::RENTAL_WRITE,
         ];
     }
 }

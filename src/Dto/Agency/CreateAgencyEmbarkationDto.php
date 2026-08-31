@@ -27,6 +27,8 @@ class CreateAgencyEmbarkationDto
 
         public ?string $notes = null,
 
+        public ?string $driver = null,
+
         /** @var list<string>|null */
         public ?array $ticketIds = null,
     ) {

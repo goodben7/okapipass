@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; color: #111827; margin: 40px; font-size: 13px; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .subtitle { color: #6b7280; margin-bottom: 24px; }
+        .section { margin-bottom: 20px; }
+        .label { font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; }
+        .value { font-size: 14px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        td { padding: 8px 0; vertical-align: top; width: 50%; }
+        .footer { margin-top: 40px; font-size: 11px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+        .badge { display: inline-block; background: #dbeafe; color: #1d4ed8; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Contrat de location charter</h1>
+    <div class="subtitle">{{ agency.name|default('Agence partenaire') }} — {{ contract.id }}</div>
+    <span class="badge">{{ contract.status }}</span>
+
+    <table>
+        <tr>
+            <td>
+                <div class="label">Client</div>
+                <div class="value">{{ contract.clientName }}</div>
+            </td>
+            <td>
+                <div class="label">Téléphone</div>
+                <div class="value">{{ contract.clientPhone }}</div>
+            </td>
+        </tr>
+        {% if contract.clientCompany %}
+        <tr>
+            <td colspan="2">
+                <div class="label">Société</div>
+                <div class="value">{{ contract.clientCompany }}</div>
+            </td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td>
+                <div class="label">Véhicule</div>
+                <div class="value">{{ transport.label|default('?') }} ({{ transport.plateNumber|default('?') }})</div>
+            </td>
+            <td>
+                <div class="label">Chauffeur</div>
+                <div class="value">{{ driver.fullName|default('Non assigné') }}</div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div class="label">Début</div>
+                <div class="value">{{ contract.startAt|date('d/m/Y H:i') }}</div>
+            </td>
+            <td>
+                <div class="label">Fin</div>
+                <div class="value">{{ contract.endAt|date('d/m/Y H:i') }}</div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div class="label">Prise en charge</div>
+                <div class="value">{{ contract.pickupLocation|default('—') }}</div>
+            </td>
+            <td>
+                <div class="label">Restitution</div>
+                <div class="value">{{ contract.dropoffLocation|default('—') }}</div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div class="label">Tarif journalier</div>
+                <div class="value">{{ contract.dailyRate|number_format(0, '.', ' ') }} {{ contract.currency }}</div>
+            </td>
+            <td>
+                <div class="label">Montant total</div>
+                <div class="value">{{ contract.totalAmount|number_format(0, '.', ' ') }} {{ contract.currency }}</div>
+            </td>
+        </tr>
+        {% if contract.depositAmount %}
+        <tr>
+            <td>
+                <div class="label">Acompte</div>
+                <div class="value">{{ contract.depositAmount|number_format(0, '.', ' ') }} {{ contract.currency }}</div>
+            </td>
+            <td></td>
+        </tr>
+        {% endif %}
+    </table>
+
+    {% if contract.notes %}
+    <div class="section">
+        <div class="label">Notes</div>
+        <div class="value">{{ contract.notes }}</div>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        Document généré le {{ issuedAt|date('d/m/Y H:i') }} — OkapiPass Fleet
+    </div>
+</body>
+</html>

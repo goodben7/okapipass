@@ -23,6 +23,7 @@ class AgencyDashboardResource
      * @param list<array<string, mixed>> $recentTickets
      * @param list<array<string, mixed>> $recentDeclarations
      * @param list<array<string, mixed>> $departuresToday
+     * @param array<string, int>         $fleet
      */
     public function __construct(
         #[ApiProperty(identifier: true)]
@@ -34,6 +35,7 @@ class AgencyDashboardResource
         public array $recentTickets,
         public array $recentDeclarations,
         public array $departuresToday,
+        public array $fleet,
     ) {
     }
 }

@@ -41,6 +41,11 @@ final class AgencyStaffRole
                 AgencyPermission::PAYMENT_WRITE,
                 AgencyPermission::REFUND_WRITE,
                 AgencyPermission::STAFF_WRITE,
+                AgencyPermission::FLEET_READ,
+                AgencyPermission::FLEET_WRITE,
+                AgencyPermission::DRIVER_WRITE,
+                AgencyPermission::MAINTENANCE_WRITE,
+                AgencyPermission::RENTAL_WRITE,
             ],
             self::CASHIER => [
                 AgencyPermission::BOOKING_WRITE,

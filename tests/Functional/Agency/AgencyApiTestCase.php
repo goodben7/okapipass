@@ -222,4 +222,23 @@ abstract class AgencyApiTestCase extends WebTestCase
 
         return null;
     }
+
+    /**
+     * @param array<string, mixed>|list<array<string, mixed>> $payload
+     * @return list<array<string, mixed>>
+     */
+    protected function collectionMembers(array $payload): array
+    {
+        if (isset($payload['member']) && \is_array($payload['member'])) {
+            return $payload['member'];
+        }
+        if (isset($payload['hydra:member']) && \is_array($payload['hydra:member'])) {
+            return $payload['hydra:member'];
+        }
+        if (array_is_list($payload)) {
+            return $payload;
+        }
+
+        return [];
+    }
 }

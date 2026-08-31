@@ -3,6 +3,7 @@
 namespace App\MessageHandler;
 
 use App\Entity\AgencyPayment;
+use App\Manager\AgencyRentalPaymentManager;
 use App\Manager\PublicAgencyPaymentManager;
 use App\Message\CheckAgencyPaymentStatusMessage;
 use App\Repository\AgencyPaymentRepository;
@@ -18,7 +19,8 @@ final readonly class CheckAgencyPaymentStatusMessageHandler
 
     public function __construct(
         private AgencyPaymentRepository $payments,
-        private PublicAgencyPaymentManager $manager,
+        private PublicAgencyPaymentManager $onlineManager,
+        private AgencyRentalPaymentManager $rentalManager,
         private MessageBusInterface $bus,
         private LoggerInterface $logger,
     ) {
@@ -31,7 +33,7 @@ final readonly class CheckAgencyPaymentStatusMessageHandler
             return;
         }
 
-        if (AgencyPayment::CHANNEL_ONLINE !== $payment->getChannel()) {
+        if (!\in_array($payment->getChannel(), [AgencyPayment::CHANNEL_ONLINE, AgencyPayment::CHANNEL_RENTAL], true)) {
             return;
         }
 
@@ -44,7 +46,9 @@ final readonly class CheckAgencyPaymentStatusMessageHandler
         }
 
         $attempt = max(1, $message->getAttempt());
-        $finalized = $this->manager->refreshPaymentStatus($payment);
+        $finalized = AgencyPayment::CHANNEL_RENTAL === $payment->getChannel()
+            ? $this->rentalManager->refreshPaymentStatus($payment)
+            : $this->onlineManager->refreshPaymentStatus($payment);
 
         if ($finalized || $attempt >= self::MAX_ATTEMPTS) {
             return;

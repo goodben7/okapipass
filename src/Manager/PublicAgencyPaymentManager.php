@@ -35,6 +35,7 @@ final class PublicAgencyPaymentManager
         private AgencyTicketIssuanceService $ticketIssuance,
         private AgencyFlexPayClientInterface $flexPay,
         private PublicAgencyPaymentNotifier $notifier,
+        private AgencyRentalPaymentManager $rentalPayments,
         private MessageBusInterface $bus,
         private RequestStack $requestStack,
         private LoggerInterface $logger,
@@ -218,7 +219,8 @@ final class PublicAgencyPaymentManager
             return null;
         }
 
-        if (AgencyPayment::CHANNEL_ONLINE !== $payment->getChannel()) {
+        if (AgencyPayment::CHANNEL_ONLINE !== $payment->getChannel()
+            && AgencyPayment::CHANNEL_RENTAL !== $payment->getChannel()) {
             return null;
         }
 
@@ -253,7 +255,11 @@ final class PublicAgencyPaymentManager
 
         try {
             if (null !== $transactionId && '' !== \trim((string) $transactionId)) {
-                $this->refreshPaymentStatus($payment);
+                if (AgencyPayment::CHANNEL_RENTAL === $payment->getChannel()) {
+                    $this->rentalPayments->refreshPaymentStatus($payment);
+                } else {
+                    $this->refreshPaymentStatus($payment);
+                }
             }
         } catch (\Throwable $e) {
             $this->logger->error('agency.flexpay.webhook.check_status.exception', [

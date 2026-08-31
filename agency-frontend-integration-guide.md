@@ -4,8 +4,8 @@
 |-------|--------|
 | **Audience** | Dev front (Next.js `/agency`) |
 | **Backend** | API Platform / Symfony — préfixe `/api/agency/*` |
-| **Statut** | Backend prêt — remplacer `AgencyMockProvider` |
-| **Date** | 2026-08-04 |
+| **Statut** | Backend prêt (ventes desk + **module fleet F1–F4 + polish**) |
+| **Date** | 2026-08-31 |
 | **Collection test** | `bruno/agency/` |
 | **Spec métier détaillée** | `agency-backend-integration-spec.md` |
 
@@ -91,7 +91,12 @@ Exemple `me` :
     "declaration:write",
     "payment:write",
     "refund:write",
-    "staff:write"
+    "staff:write",
+    "fleet:read",
+    "fleet:write",
+    "driver:write",
+    "maintenance:write",
+    "rental:write"
   ],
   "staffRole": "ADMIN"
 }
@@ -137,6 +142,16 @@ Les relations se passent en **IRI** : `"/api/agency/offers/OF…"`.
 | Preview SMS/WA | `POST /api/agency/notifications/preview` |
 | Validate Pass | `GET /api/passes/validate?ref=OP-…` |
 | Staff | `/api/agency/staff` |
+| **Fleet — hub KPIs** | `GET /api/agency/fleet/overview` |
+| **Fleet — chauffeurs** | `/api/agency/drivers` (+ `GET …/{id}/assignments`) |
+| **Fleet — maintenance** | `/api/agency/maintenance-cases` (+ start / complete / cancel) |
+| **Fleet — location** | `/api/agency/rental-contracts` (+ confirm / activate / return / cancel) |
+| **Fleet — calendrier bus** | `GET /api/agency/transports/{id}/availability?from=&to=` |
+| **Fleet — paiement location** | `POST …/rental-contracts/{id}/payments`, `…/payments/check-status` |
+| **Fleet — PDF contrat** | `GET /api/agency/rental-contracts/{id}/pdf` |
+| **Fleet — carte FlexPay location** | `GET /api/agency/payments/{paymentId}/card/form` |
+
+Voir le détail des payloads en **§4.2.1 → §4.2.4**.
 
 ---
 
@@ -147,7 +162,45 @@ Les relations se passent en **IRI** : `"/api/agency/offers/OF…"`.
 | Méthode | Route | Notes |
 |---------|-------|-------|
 | GET | `/api/agency/me` | Profil + Pass + RBAC |
-| GET | `/api/agency/dashboard` | Stats |
+| GET | `/api/agency/dashboard` | Stats ventes + bloc `fleet` (KPIs) |
+
+**Exemple `GET /api/agency/dashboard` :**
+
+```json
+{
+  "id": "dashboard",
+  "ticketsToday": 12,
+  "activeBookings": 3,
+  "fptDue": 45000,
+  "activeTransports": 9,
+  "recentTickets": [ … ],
+  "recentDeclarations": [ … ],
+  "departuresToday": [
+    {
+      "offerId": "OF…",
+      "label": "Kin Express",
+      "departureTime": "06:00",
+      "capacity": 45,
+      "occupied": 12,
+      "embarkationId": "AE…"
+    }
+  ],
+  "fleet": {
+    "totalTransports": 12,
+    "activeTransports": 9,
+    "maintenanceTransports": 2,
+    "inactiveTransports": 1,
+    "activeDrivers": 8,
+    "driversOnDutyToday": 3,
+    "driversWithExpiringLicense": 1,
+    "openMaintenanceCases": 2,
+    "activeRentals": 1,
+    "maintenanceCostThisMonth": 425000
+  }
+}
+```
+
+Le bloc `fleet` reprend les mêmes clés que `GET /api/agency/fleet/overview` → `kpis`. Pour les listes détaillées (maintenance récente, locations actives, permis expirants), utiliser **`/fleet/overview`**.
 
 ### 4.2 Transports
 
@@ -174,6 +227,337 @@ Les relations se passent en **IRI** : `"/api/agency/offers/OF…"`.
 `kind` : `BUS` \| `MINIBUS` \| `COASTER` \| `VAN`  
 `status` : `ACTIVE` \| `INACTIVE` \| `MAINTENANCE`  
 → `MAINTENANCE` / `INACTIVE` **bloque les ventes**.
+
+### 4.2.1 Chauffeurs (fleet F1)
+
+| Méthode | Route |
+|---------|-------|
+| GET/POST | `/api/agency/drivers` |
+| GET/PATCH/DELETE | `/api/agency/drivers/{id}` |
+
+**POST body :**
+
+```json
+{
+  "fullName": "Jean Kabongo",
+  "phone": "+243812345678",
+  "licenseNumber": "LIC-2026-001",
+  "licenseExpiresAt": "2027-12-31",
+  "status": "ACTIVE",
+  "notes": "Senior driver"
+}
+```
+
+`status` : `ACTIVE` \| `INACTIVE` \| `SUSPENDED` — seuls les `ACTIVE` sont assignables.
+
+Filtres liste : `?status=ACTIVE`, `?licenseNumber=LIC-2026-001`, `?fullName=Kabongo`.
+
+**Embarquement avec chauffeur** — champ optionnel `driver` (IRI) :
+
+```json
+{
+  "label": "Matadi 06:00",
+  "offer": "/api/agency/offers/OF…",
+  "transport": "/api/agency/transports/AT…",
+  "driver": "/api/agency/drivers/AD…",
+  "departureDate": "2026-09-15",
+  "departureTime": "06:00"
+}
+```
+
+Historique assignations : `GET /api/agency/embarkations?driver.id=AD…`
+
+| Erreur | Code | Cas |
+|--------|------|-----|
+| 409 | Plaque permis dupliquée ou delete avec embarquements liés |
+| 422 | Chauffeur `INACTIVE` / `SUSPENDED` assigné à embarquement |
+
+### 4.2.2 Maintenance véhicule (fleet F2)
+
+| Méthode | Route |
+|---------|-------|
+| GET/POST | `/api/agency/maintenance-cases` |
+| GET/PATCH | `/api/agency/maintenance-cases/{id}` |
+| POST | `/api/agency/maintenance-cases/{id}/start` |
+| POST | `/api/agency/maintenance-cases/{id}/complete` |
+| POST | `/api/agency/maintenance-cases/{id}/cancel` |
+
+**POST body (ouvrir un dossier) :**
+
+```json
+{
+  "transport": "/api/agency/transports/AT…",
+  "type": "REPAIR",
+  "title": "Freins avant",
+  "description": "Bruit au freinage",
+  "odometerKm": 120000,
+  "estimatedCost": 250000,
+  "vendorName": "Garage Central"
+}
+```
+
+`type` : `REPAIR` \| `INSPECTION` \| `PREVENTIVE` \| `ACCIDENT` \| `OTHER`  
+`status` (lecture) : `OPEN` → `IN_PROGRESS` → `DONE` (ou `CANCELLED`)
+
+**Effet automatique sur le bus :**
+
+- Dossier `OPEN` / `IN_PROGRESS` / `WAITING_PARTS` → transport passe en `MAINTENANCE` → **ventes bloquées** (desk + B2C)
+- Tous les dossiers bloquants clôturés → transport repasse `ACTIVE` (sauf s'il était `INACTIVE`)
+
+**Workflow actions :**
+
+```http
+POST /api/agency/maintenance-cases/{id}/start
+POST /api/agency/maintenance-cases/{id}/complete
+{ "actualCost": 150000, "description": "Travaux terminés" }
+POST /api/agency/maintenance-cases/{id}/cancel
+```
+
+Historique par bus : `GET /api/agency/maintenance-cases?transport.id=AT…`
+
+### 4.2.3 Location / charter (fleet F3)
+
+| Méthode | Route |
+|---------|-------|
+| GET/POST | `/api/agency/rental-contracts` |
+| GET/PATCH | `/api/agency/rental-contracts/{id}` |
+| POST | `/api/agency/rental-contracts/{id}/confirm` |
+| POST | `/api/agency/rental-contracts/{id}/activate` |
+| POST | `/api/agency/rental-contracts/{id}/return` |
+| POST | `/api/agency/rental-contracts/{id}/cancel` |
+| GET | `/api/agency/transports/{transportId}/availability?from=2026-09-01&to=2026-09-30` |
+
+**POST body (créer un contrat en brouillon) :**
+
+```json
+{
+  "transport": "/api/agency/transports/AT…",
+  "driver": "/api/agency/drivers/AD…",
+  "clientName": "Société Minex",
+  "clientPhone": "+243812345678",
+  "clientCompany": "Minex SARL",
+  "startAt": "2026-09-10T08:00:00",
+  "endAt": "2026-09-13T18:00:00",
+  "pickupLocation": "Kinshasa Gare Centrale",
+  "dropoffLocation": "Matadi Port",
+  "dailyRate": 150000,
+  "totalAmount": 450000,
+  "depositAmount": 100000,
+  "currency": "CDF",
+  "notes": "Location charter 3 jours"
+}
+```
+
+`driver` est optionnel. Seuls les contrats `DRAFT` sont modifiables (PATCH).
+
+**Statuts :** `DRAFT` → `CONFIRMED` → `ACTIVE` → `RETURNED` — annulation possible depuis `DRAFT` ou `CONFIRMED`.
+
+**Workflow actions :**
+
+```http
+POST /api/agency/rental-contracts/{id}/confirm
+POST /api/agency/rental-contracts/{id}/activate
+POST /api/agency/rental-contracts/{id}/return
+POST /api/agency/rental-contracts/{id}/cancel
+```
+
+**Effet sur les ventes passagers :**
+
+- Contrat `CONFIRMED` ou `ACTIVE` qui chevauche une **date de voyage** → ventes bloquées (desk + B2C) pour cette date uniquement
+- Les jours hors période de location restent vendables
+- Un contrat `DRAFT` ou `CANCELLED` ne bloque pas
+
+**Calendrier de disponibilité** — réponse par jour (max 90 jours) :
+
+```json
+{
+  "transportId": "AT…",
+  "from": "2026-09-01",
+  "to": "2026-09-30",
+  "days": [
+    { "date": "2026-09-10", "available": true, "reason": null },
+    { "date": "2026-09-11", "available": false, "reason": "RENTAL" }
+  ]
+}
+```
+
+Valeurs `reason` : `RENTAL`, `MAINTENANCE`, `INACTIVE`.
+
+Filtres liste : `?status=CONFIRMED`, `?transport.id=AT…`, `?clientName=Minex`.
+
+| Erreur | Code | Cas |
+|--------|------|-----|
+| 409 | Deux locations confirmées/actives se chevauchent sur le même bus |
+| 422 | Modification hors `DRAFT`, activation/retour hors statut attendu, vente passager sur date louée |
+
+**Paiement location (Phase 2 polish) :**
+
+```http
+POST /api/agency/rental-contracts/{id}/payments
+{ "method": "CASH", "amount": 100000, "notes": "Acompte guichet" }
+POST /api/agency/rental-contracts/{id}/payments/check-status
+GET  /api/agency/rental-contracts/{id}/pdf
+GET  /api/agency/payments/{paymentId}/card/form   # si method=CARD
+```
+
+- `method` : `CASH` (encaissement immédiat guichet) \| `MOBILE_MONEY` \| `CARD` (FlexPay)
+- Montant par défaut : `depositAmount` si renseigné, sinon `totalAmount`
+- Contrat payable en statut `CONFIRMED` ou `ACTIVE` uniquement
+- Un seul paiement `PAID` par contrat (MVP)
+
+**Réponses paiement (`POST …/payments`, `POST …/check-status`) — status 201 / 200 :**
+
+Encaissement cash immédiat :
+
+```json
+{
+  "id": "AP…",
+  "reference": "CRP-…-A1B2C3",
+  "amount": 100000,
+  "currency": "CDF",
+  "method": "CASH",
+  "status": "PAID",
+  "channel": "RENTAL",
+  "paidAt": "2026-08-31T10:15:00+00:00",
+  "rentalContract": "/api/agency/rental-contracts/RC…"
+}
+```
+
+Mobile Money (en attente → poll) :
+
+```json
+{
+  "id": "AP…",
+  "reference": "CRP-…-D4E5F6",
+  "amount": 360000,
+  "currency": "CDF",
+  "method": "MOBILE_MONEY",
+  "status": "PENDING",
+  "channel": "RENTAL",
+  "provider": "FLEXPAY",
+  "providerTransactionId": "TX-…"
+}
+```
+
+Après `POST …/payments/check-status` (stub / FlexPay OK) → `"status": "PAID"`.
+
+Carte (redirection formulaire) :
+
+```json
+{
+  "id": "AP…",
+  "method": "CARD",
+  "status": "PENDING",
+  "channel": "RENTAL",
+  "providerResponse": {
+    "mode": "HTML_FORM",
+    "formUrl": "/api/agency/payments/AP…/card/form"
+  }
+}
+```
+
+Ouvrir `formUrl` (même origine API) dans un navigateur ou WebView — auto-submit vers FlexPay.
+
+| Erreur | Code | Cas paiement location |
+|--------|------|------------------------|
+| 409 | Paiement `PAID` déjà existant, ou MM en cours avec autre method |
+| 422 | Contrat non `CONFIRMED`/`ACTIVE`, montant invalide |
+| 403 | Rôle sans `payment:write` (ex. `READONLY`) |
+
+**Alertes fleet (Phase 2 polish — backend / ops, pas d’UI front obligatoire) :**
+
+- Ouverture dossier maintenance → WhatsApp agence (`MAINTENANCE_ALERT`)
+- Cron : `php bin/console app:fleet:send-license-alerts --days=30`
+
+### 4.2.4 Hub fleet / KPIs (fleet F4)
+
+| Méthode | Route |
+|---------|-------|
+| GET | `/api/agency/fleet/overview` |
+| GET | `/api/agency/drivers/{id}/assignments` |
+
+**Vue d’ensemble flotte** — hub pour l’écran `/agency/fleet` :
+
+```http
+GET /api/agency/fleet/overview
+```
+
+```json
+{
+  "id": "overview",
+  "kpis": {
+    "totalTransports": 12,
+    "activeTransports": 9,
+    "maintenanceTransports": 2,
+    "inactiveTransports": 1,
+    "activeDrivers": 8,
+    "driversOnDutyToday": 3,
+    "driversWithExpiringLicense": 1,
+    "openMaintenanceCases": 2,
+    "activeRentals": 1,
+    "maintenanceCostThisMonth": 425000
+  },
+  "recentMaintenanceCases": [ … ],
+  "activeRentals": [ … ],
+  "expiringLicenses": [ … ]
+}
+```
+
+Le bloc `fleet` est aussi exposé dans `GET /api/agency/dashboard` (même structure `kpis`).
+
+**Historique embarquements d’un chauffeur :**
+
+```http
+GET /api/agency/drivers/AD…/assignments
+```
+
+```json
+{
+  "driverId": "AD…",
+  "driverName": "Jean Kabongo",
+  "assignments": [
+    {
+      "embarkationId": "AE…",
+      "label": "Matadi 06:00",
+      "status": "PLANNED",
+      "departureDate": "2026-09-15",
+      "departureTime": "06:00",
+      "offerId": "OF…",
+      "offerLabel": "Kin Express",
+      "transportId": "AT…",
+      "transportLabel": "Bus 45 places"
+    }
+  ]
+}
+```
+
+**Permissions RBAC fleet** (retournées par `/me`) :
+
+| Permission | Usage |
+|------------|-------|
+| `fleet:read` | Consulter overview / calendrier |
+| `fleet:write` | Accès module fleet (ADMIN) |
+| `driver:write` | CRUD chauffeurs |
+| `maintenance:write` | Dossiers maintenance |
+| `rental:write` | Contrats location |
+
+> **RBAC staff :** seul le rôle **`ADMIN`** (titulaire agence) reçoit les permissions fleet par défaut.  
+> `CASHIER` / `EMBARKATION` / `READONLY` n’ont **pas** `fleet:*` — masquer le menu Fleet pour ces rôles.
+
+**Structure écrans recommandée (`/agency/fleet`) :**
+
+```
+/agency/fleet
+  /overview          ← GET /fleet/overview (+ KPIs dashboard)
+  /transports        ← CRUD existant §4.2
+  /transports/{id}
+    /calendar        ← GET …/availability?from=&to=
+    /maintenance     ← liste ?transport.id= + actions
+  /drivers           ← CRUD §4.2.1
+  /drivers/{id}      ← détail + GET …/assignments
+  /rentals           ← CRUD + workflow §4.2.3
+  /rentals/{id}      ← paiement, PDF, statut
+```
 
 ### 4.3 Offres
 
@@ -448,7 +832,7 @@ Ne **jamais** fusionner avec les anciennes APIs Trip/Ticket grand public.
 | 401 | Token manquant / invalide |
 | 403 | Rôle insuffisant |
 | 404 | Ressource autre agence (tenant) ou inexistante |
-| 409 | Conflit siège |
+| 409 | Conflit siège, permis chauffeur dupliqué, chevauchement location, paiement location déjà payé |
 | 415 | Content-Type incorrect |
 | 422 | Validation métier / CSV |
 | 429 | Rate-limit import CSV |
@@ -469,10 +853,20 @@ Ne **jamais** fusionner avec les anciennes APIs Trip/Ticket grand public.
 9. **Pass validate** dans le wizard vente
 10. **Staff** + gating permissions
 11. **Notification preview** (SMS / WA)
+12. **Fleet hub** — `GET /fleet/overview` + dashboard `fleet`
+13. **Chauffeurs** — CRUD + select sur wizard embarquement (`driver` IRI)
+14. **Maintenance** — fiche bus, workflow start/complete/cancel (ventes bloquées auto)
+15. **Calendrier transport** — `GET …/transports/{id}/availability` (vue planning)
+16. **Locations** — contrats charter + confirm/activate/return
+17. **Paiement location** — cash desk + poll FlexPay + PDF contrat
+
+Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet stable.
 
 ---
 
 ## 8. Checklist front
+
+### Ventes desk (existant)
 
 - [ ] Supprimer / feature-flag `AgencyMockProvider`
 - [ ] Client HTTP : JWT + parse `member` / `hydra:member`
@@ -485,6 +879,22 @@ Ne **jamais** fusionner avec les anciennes APIs Trip/Ticket grand public.
 - [ ] Gating UI via `permissions` / `staffRole`
 - [ ] Distinguer `VP-…` (billet) vs `OP-…` (Pass)
 - [ ] Tester contre Bruno `bruno/agency/` + seed
+
+### Module fleet (F1–F4 + polish)
+
+- [ ] Menu Fleet visible si `fleet:read` (typiquement `ADMIN`)
+- [ ] Page overview : `GET /api/agency/fleet/overview`
+- [ ] Dashboard accueil : afficher le bloc `fleet` retourné par `/dashboard`
+- [ ] Chauffeurs : CRUD + badge permis expirant (data `expiringLicenses`)
+- [ ] Embarquement : champ optionnel `driver` (select chauffeurs `ACTIVE`)
+- [ ] Fiche bus : onglet maintenance + actions POST start/complete/cancel
+- [ ] Fiche bus : calendrier dispo (`reason`: `RENTAL` \| `MAINTENANCE` \| `INACTIVE`)
+- [ ] Locations : workflow DRAFT → CONFIRMED → ACTIVE → RETURNED
+- [ ] Location : paiement (`CASH` / `MOBILE_MONEY` / `CARD`) + poll `check-status`
+- [ ] Location : bouton télécharger PDF (`GET …/pdf`, `Accept: application/pdf`)
+- [ ] Fiche chauffeur : historique `GET /drivers/{id}/assignments`
+- [ ] Gérer 409 chevauchement location à la confirmation
+- [ ] Ne pas proposer vente passager sur dates `available: false` (calendrier)
 
 ---
 
@@ -505,8 +915,10 @@ Ne **jamais** fusionner avec les anciennes APIs Trip/Ticket grand public.
 | Ressource | Chemin |
 |-----------|--------|
 | Spec métier complète | `agency-backend-integration-spec.md` |
-| Collection Bruno | `bruno/agency/` (+ README) |
+| **Module fleet (ce guide)** | **§4.2.1 → §4.2.4** |
+| Collection Bruno | `bruno/agency/` (+ README — fleet à compléter côté Bruno) |
 | CSV exemple | `bruno/agency/declarations/fixtures/sample.csv` |
 | Seed local | `php bin/console app:seed-agency-portal` |
+| Tests API fleet | `tests/Functional/Agency/AgencyDriverTest.php`, `AgencyMaintenanceCaseTest.php`, `AgencyRentalContractTest.php`, `AgencyFleetOverviewTest.php`, `AgencyFleetPolishTest.php` |
 
 Questions / écarts mock ↔ API : ouvrir une issue ou ping backend avec la route + payload + status code.

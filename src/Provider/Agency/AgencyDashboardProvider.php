@@ -5,6 +5,7 @@ namespace App\Provider\Agency;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProviderInterface;
 use App\ApiResource\AgencyDashboardResource;
+use App\Domain\Agency\AgencyFleetOverviewService;
 use App\Domain\Agency\SeatOccupancyService;
 use App\Entity\AgencyBooking;
 use App\Entity\AgencyTicket;
@@ -29,6 +30,7 @@ final class AgencyDashboardProvider implements ProviderInterface
         private PassDeclarationRepository $declarations,
         private AgencyEmbarkationRepository $embarkations,
         private SeatOccupancyService $occupancy,
+        private AgencyFleetOverviewService $fleetOverview,
     ) {
     }
 
@@ -117,6 +119,7 @@ final class AgencyDashboardProvider implements ProviderInterface
             recentTickets: $recentTickets,
             recentDeclarations: $recentDeclarations,
             departuresToday: $departuresToday,
+            fleet: $this->fleetOverview->buildOverview($agency)['kpis'],
         );
     }
 }

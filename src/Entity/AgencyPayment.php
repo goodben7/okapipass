@@ -65,6 +65,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'method' => 'exact',
     'ticket.id' => 'exact',
     'currency' => 'exact',
+    'rentalContract.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'amount', 'paidAt'])]
 class AgencyPayment implements RessourceInterface, AgencyScopedInterface
@@ -85,6 +86,7 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
 
     public const string CHANNEL_DESK = 'DESK';
     public const string CHANNEL_ONLINE = 'ONLINE';
+    public const string CHANNEL_RENTAL = 'RENTAL';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -107,6 +109,11 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     #[ORM\JoinColumn(name: 'AP_BOOKING', nullable: true, referencedColumnName: 'AB_ID')]
     #[Groups(['agency_payment:get'])]
     private ?AgencyBooking $booking = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AP_RENTAL_CONTRACT', nullable: true, referencedColumnName: 'RC_ID')]
+    #[Groups(['agency_payment:get'])]
+    private ?AgencyRentalContract $rentalContract = null;
 
     #[ORM\Column(name: 'AP_REFERENCE', length: 30)]
     #[Groups(['agency_payment:get'])]
@@ -187,7 +194,7 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     /** @return list<string> */
     public static function getChannelsAsList(): array
     {
-        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE];
+        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE, self::CHANNEL_RENTAL];
     }
 
     public function getId(): ?string
@@ -227,6 +234,18 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public function setBooking(?AgencyBooking $booking): static
     {
         $this->booking = $booking;
+
+        return $this;
+    }
+
+    public function getRentalContract(): ?AgencyRentalContract
+    {
+        return $this->rentalContract;
+    }
+
+    public function setRentalContract(?AgencyRentalContract $rentalContract): static
+    {
+        $this->rentalContract = $rentalContract;
 
         return $this;
     }

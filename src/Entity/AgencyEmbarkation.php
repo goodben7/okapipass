@@ -95,6 +95,8 @@ use Symfony\Component\Validator\Constraints as Assert;
     'label' => 'ipartial',
     'offer.id' => 'exact',
     'transport.id' => 'exact',
+    'driver' => 'exact',
+    'driver.id' => 'exact',
 ])]
 #[ApiFilter(DateFilter::class, properties: ['departureDate', 'createdAt'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'departureDate', 'departureTime'])]
@@ -134,6 +136,11 @@ class AgencyEmbarkation implements RessourceInterface, AgencyScopedInterface
     #[ORM\JoinColumn(name: 'AE_TRANSPORT', nullable: false, referencedColumnName: 'AT_ID')]
     #[Groups(['agency_embarkation:get'])]
     private ?AgencyTransport $transport = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AE_DRIVER', nullable: true, referencedColumnName: 'AD_ID')]
+    #[Groups(['agency_embarkation:get'])]
+    private ?AgencyDriver $driver = null;
 
     #[ORM\Column(name: 'AE_DEPARTURE_DATE', type: Types::DATE_IMMUTABLE)]
     #[Groups(['agency_embarkation:get'])]
@@ -244,6 +251,18 @@ class AgencyEmbarkation implements RessourceInterface, AgencyScopedInterface
     public function setTransport(?AgencyTransport $transport): static
     {
         $this->transport = $transport;
+
+        return $this;
+    }
+
+    public function getDriver(): ?AgencyDriver
+    {
+        return $this->driver;
+    }
+
+    public function setDriver(?AgencyDriver $driver): static
+    {
+        $this->driver = $driver;
 
         return $this;
     }

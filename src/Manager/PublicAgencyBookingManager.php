@@ -4,6 +4,7 @@ namespace App\Manager;
 
 use App\Domain\Agency\AgencyPricingService;
 use App\Domain\Agency\AgencyTicketIssuanceService;
+use App\Domain\Agency\AgencyTransportAvailabilityService;
 use App\Domain\Agency\SeatOccupancyService;
 use App\Domain\PublicAgency\PublicAgencyBookingMapper;
 use App\Domain\PublicAgency\PublicAgencyBookingTokenGenerator;
@@ -11,6 +12,7 @@ use App\Domain\PublicAgency\PublicAgencyCatalogService;
 use App\ApiResource\Public\PublicAgencyBookingResource;
 use App\Dto\Public\CreatePublicAgencyBookingDto;
 use App\Entity\AgencyBooking;
+use App\Entity\AgencyTransport;
 use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
 use App\Exception\UnprocessableEntityException;
@@ -29,6 +31,7 @@ final class PublicAgencyBookingManager
         private AgencyTicketIssuanceService $ticketIssuance,
         private PublicAgencyBookingTokenGenerator $tokenGenerator,
         private PublicAgencyBookingMapper $mapper,
+        private AgencyTransportAvailabilityService $transportAvailability,
     ) {
     }
 
@@ -42,6 +45,10 @@ final class PublicAgencyBookingManager
         }
 
         $travelDate = $this->parseTravelDate((string) $dto->travelDate);
+        $transport = $offer->getTransport();
+        if ($transport instanceof AgencyTransport) {
+            $this->transportAvailability->assertAvailableForTravelDate($transport, $travelDate);
+        }
         $quote = $this->pricing->quote($dto->okapiPassRef);
         $ticketPrice = (int) $offer->getTicketPrice();
         $passPrice = (int) $quote['passPrice'];
