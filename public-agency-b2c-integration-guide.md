@@ -258,10 +258,12 @@ Content-Type: application/json
 | `offerId` | oui | Offre online |
 | `travelDate` | oui | `YYYY-MM-DD` |
 | `seatNumber` | oui | max 10 car., doit exister dans `layout.seatIds` |
-| `passengerName` | oui | max 120 |
+| `passengerName` | oui | max 120 — **voyageur** (nom sur le billet) |
 | `passengerId` | oui | max 60 |
-| `passengerPhone` | oui | max 20, format E.164 recommandé |
+| `passengerPhone` | oui | max 20, format E.164 — **voyageur** (reçoit SMS + WhatsApp + PDF) |
 | `okapiPassRef` | non | max 40 |
+
+> **Achat pour un tiers :** renseignez ici les coordonnées du **passager** (celui qui voyage). Le numéro Mobile Money du payeur se transmet à l'étape paiement via `payerPhone` (§ 6.1).
 
 Réponse **201** (test `testCreateOnlineBookingReturnsTokenAndQuote`) :
 
@@ -353,11 +355,25 @@ Content-Type: application/json
 { "method": "MOBILE_MONEY" }
 ```
 
+Achat pour quelqu'un d'autre (push MM sur le téléphone du payeur, billet envoyé au passager) :
+
+```json
+{
+  "method": "MOBILE_MONEY",
+  "payerPhone": "+243811111111"
+}
+```
+
 ou :
 
 ```json
 { "method": "CARD" }
 ```
+
+| Champ | Requis | Description |
+|-------|--------|-------------|
+| `method` | oui | `MOBILE_MONEY` ou `CARD` |
+| `payerPhone` | non | Numéro Mobile Money du **payeur**. Si omis, le push MM part sur `passengerPhone` (achat pour soi-même). |
 
 Valeurs `method` : `MOBILE_MONEY` | `CARD` (exactement, sensibles à la casse).
 
@@ -380,7 +396,7 @@ Valeurs `method` : `MOBILE_MONEY` | `CARD` (exactement, sensibles à la casse).
 }
 ```
 
-**UX MM :** afficher « Validez le push USSD / Mobile Money sur votre téléphone ». Le numéro utilisé est `passengerPhone` de la réservation.
+**UX MM :** afficher « Validez le push USSD / Mobile Money sur votre téléphone ». Le push part sur `payerPhone` si fourni, sinon sur `passengerPhone`. Le billet (SMS + WhatsApp) est toujours envoyé au `passengerPhone` de la réservation.
 
 Le backend planifie automatiquement un **poll async** (~20 s après initiation) via Symfony Messenger. Le front doit quand même poller `check-status` (voir § 6.3).
 

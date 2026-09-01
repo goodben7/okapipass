@@ -26,6 +26,7 @@ final class CreatePublicAgencyBookingDto
         #[Assert\Length(max: 60)]
         public ?string $passengerId = null,
 
+        /** Phone of the traveler — receives the ticket (SMS + WhatsApp) after payment. */
         #[Assert\NotBlank]
         #[Assert\Length(max: 20)]
         public ?string $passengerPhone = null,

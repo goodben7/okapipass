@@ -198,19 +198,51 @@ final class PublicAgencyPaymentTest extends AgencyApiTestCase
         );
     }
 
+    public function testPayForSomeoneElseUsesPayerPhoneForMobileMoneyAndSendsTicketToPassenger(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createPublicBooking($ws, '02D', [
+            'passengerName' => 'Marie Kabongo',
+            'passengerId' => 'ID-MARIE',
+            'passengerPhone' => '+243899999999',
+        ]);
+
+        $pay = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay',
+            [
+                'method' => AgencyPayment::METHOD_MOBILE_MONEY,
+                'payerPhone' => '+243811111111',
+            ],
+        );
+
+        $payment = $this->em->find(AgencyPayment::class, $pay['paymentId']);
+        self::assertInstanceOf(AgencyPayment::class, $payment);
+        self::assertSame('+243811111111', $payment->getPayerPhone());
+        self::assertSame('+243811111111', $payment->getProviderResponse()['phone'] ?? null);
+
+        static::getContainer()->get(PublicAgencyPaymentManager::class)->fulfillSuccessfulPayment($payment);
+        $this->em->refresh($payment);
+
+        $ticket = $payment->getTicket();
+        self::assertInstanceOf(AgencyTicket::class, $ticket);
+        self::assertSame('Marie Kabongo', $ticket->getPassengerName());
+        self::assertSame('+243899999999', $ticket->getPassengerPhone());
+    }
+
     /**
+     * @param array<string, mixed> $overrides
      * @return array<string, mixed>
      */
-    private function createPublicBooking(array $ws, string $seat): array
+    private function createPublicBooking(array $ws, string $seat, array $overrides = []): array
     {
-        return $this->publicPost('/api/public/agency/bookings', [
+        return $this->publicPost('/api/public/agency/bookings', array_merge([
             'offerId' => $ws['offer']->getId(),
             'travelDate' => $this->travelDate('+7 days'),
             'seatNumber' => $seat,
             'passengerName' => 'Jean Kabongo',
             'passengerId' => 'ID-'.str_replace('0', '', $seat),
             'passengerPhone' => '+243812345678',
-        ], 201);
+        ], $overrides), 201);
     }
 
     /**

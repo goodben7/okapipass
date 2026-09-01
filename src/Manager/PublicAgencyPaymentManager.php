@@ -42,7 +42,7 @@ final class PublicAgencyPaymentManager
     ) {
     }
 
-    public function initiatePayment(string $publicToken, string $method): PublicAgencyBookingPaymentResource
+    public function initiatePayment(string $publicToken, string $method, ?string $payerPhone = null): PublicAgencyBookingPaymentResource
     {
         $booking = $this->requireOnlineBookingByToken($publicToken);
 
@@ -95,7 +95,10 @@ final class PublicAgencyPaymentManager
             return $this->toPaymentResource($booking, $payment);
         }
 
-        $response = $this->flexPay->initiate($payment, (string) $booking->getPassengerPhone());
+        $mmPhone = $this->resolveMobileMoneyPhone($payerPhone, (string) $booking->getPassengerPhone());
+        $payment->setPayerPhone($mmPhone);
+
+        $response = $this->flexPay->initiate($payment, $mmPhone);
         $payment->setProviderResponse($response->raw);
 
         if ($response->isSuccess()) {
@@ -516,5 +519,19 @@ final class PublicAgencyPaymentManager
             new CheckAgencyPaymentStatusMessage($paymentId),
             [new DelayStamp(20000)],
         );
+    }
+
+    private function resolveMobileMoneyPhone(?string $payerPhone, string $passengerPhone): string
+    {
+        $phone = trim((string) ($payerPhone ?? ''));
+        if ('' === $phone) {
+            $phone = trim($passengerPhone);
+        }
+
+        if ('' === $phone) {
+            throw new UnprocessableEntityException('A Mobile Money phone number is required.');
+        }
+
+        return $phone;
     }
 }

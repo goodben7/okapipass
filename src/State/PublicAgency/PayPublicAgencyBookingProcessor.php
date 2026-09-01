@@ -23,6 +23,7 @@ final class PayPublicAgencyBookingProcessor implements ProcessorInterface
         return $this->manager->initiatePayment(
             (string) ($uriVariables['publicToken'] ?? ''),
             (string) $data->method,
+            $data->payerPhone,
         );
     }
 }

@@ -171,6 +171,11 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_payment:get'])]
     private ?string $notes = null;
 
+    /** Mobile Money phone used for payment (may differ from ticket passenger). */
+    #[ORM\Column(name: 'AP_PAYER_PHONE', length: 20, nullable: true)]
+    #[Groups(['agency_payment:get'])]
+    private ?string $payerPhone = null;
+
     #[ORM\Column(name: 'AP_CREATED_AT')]
     #[Groups(['agency_payment:get'])]
     private ?\DateTimeImmutable $createdAt = null;
@@ -402,6 +407,18 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public function setNotes(?string $notes): static
     {
         $this->notes = $notes;
+
+        return $this;
+    }
+
+    public function getPayerPhone(): ?string
+    {
+        return $this->payerPhone;
+    }
+
+    public function setPayerPhone(?string $payerPhone): static
+    {
+        $this->payerPhone = $payerPhone;
 
         return $this;
     }
