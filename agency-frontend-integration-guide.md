@@ -5,7 +5,7 @@
 | **Audience** | Dev front (Next.js `/agency`) |
 | **Backend** | API Platform / Symfony — préfixe `/api/agency/*` |
 | **Statut** | Backend prêt (ventes desk + **module fleet F1–F4 + polish**) |
-| **Date** | 2026-08-31 |
+| **Date** | 2026-09-01 |
 | **Collection test** | `bruno/agency/` |
 | **Spec métier détaillée** | `agency-backend-integration-spec.md` |
 
@@ -20,6 +20,7 @@ Brancher le portail partenaire sur l’API réelle. Ce document est le **contrat
 | Préfixe | Usage |
 |---------|--------|
 | `/api/agency/*` | Portail PARTNER (multi-tenant auto) |
+| `/api/public/agency/*` | **Boutique B2C voyageur** (sans JWT) — voir `public-agency-b2c-integration-guide.md` |
 | `/api/agencies` | Admin ONT — créer / gérer les agences |
 | `/api/passes/*`, `/api/ont/*` | Pass ONT / FPT côté ONT |
 
@@ -583,6 +584,32 @@ GET /api/agency/drivers/AD…/assignments
 }
 ```
 
+#### Vente en ligne B2C (widget voyageur)
+
+Pour exposer une offre sur le front voyageur (`/api/public/agency/*`), activer la vente online :
+
+```http
+PATCH /api/agency/offers/{id}
+Authorization: Bearer {jwt}
+Content-Type: application/merge-patch+json
+
+{
+  "onlineSales": true,
+  "bookingHoldMinutes": 15
+}
+```
+
+| Champ | Effet |
+|-------|-------|
+| `onlineSales: true` | Offre visible dans `GET /api/public/agency/offers` |
+| `bookingHoldMinutes` | Durée du hold B2C (défaut 15 min) |
+
+Sans `onlineSales`, l'offre reste **desk only** (portail partenaire).
+
+Le parcours voyageur complet (solo, achat pour tiers, réservation groupée, `payerPhone`, billet groupé unique) est documenté dans **`public-agency-b2c-integration-guide.md`** — ce guide portail ne duplique pas ces routes.
+
+Impact maintenance / location : un transport en `MAINTENANCE` ou une location active bloque aussi les ventes B2C pour les dates concernées (même règle que le desk).
+
 ### 4.4 Sièges (critique pour le front)
 
 Le plan **n’est pas** une table seats. Il est **calculé** côté serveur depuis `kind` + `capacity`.
@@ -896,6 +923,12 @@ Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet 
 - [ ] Gérer 409 chevauchement location à la confirmation
 - [ ] Ne pas proposer vente passager sur dates `available: false` (calendrier)
 
+### Vente online B2C (configuration portail)
+
+- [ ] Toggle `onlineSales` sur les offres destinées au widget voyageur
+- [ ] Ajuster `bookingHoldMinutes` si besoin (défaut 15)
+- [ ] Ne pas implémenter le parcours B2C dans `/agency` — consommer `public-agency-b2c-integration-guide.md` sur le front voyageur séparé
+
 ---
 
 ## 9. Hors scope portail (ne pas appeler depuis `/agency`)
@@ -915,6 +948,7 @@ Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet 
 | Ressource | Chemin |
 |-----------|--------|
 | Spec métier complète | `agency-backend-integration-spec.md` |
+| **Guide B2C voyageur** | **`public-agency-b2c-integration-guide.md`** (solo, tiers, groupes) |
 | **Module fleet (ce guide)** | **§4.2.1 → §4.2.4** |
 | Collection Bruno | `bruno/agency/` (+ README — fleet à compléter côté Bruno) |
 | CSV exemple | `bruno/agency/declarations/fixtures/sample.csv` |

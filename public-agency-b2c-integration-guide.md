@@ -7,8 +7,8 @@
 | **Base URL prod** | `https://api.ont.digisafrica.tech` |
 | **Auth** | Aucune — endpoints `PUBLIC_ACCESS` |
 | **Format** | JSON (`application/json`) |
-| **Statut** | Backend prêt MVP — 46 tests PHPUnit |
-| **Date** | 2026-08-30 |
+| **Statut** | Backend prêt MVP — 32 tests PHPUnit (`PublicAgency/`) |
+| **Date** | 2026-09-01 |
 | **Tests backend** | `tests/Functional/PublicAgency/` |
 
 ---
@@ -73,7 +73,19 @@ Conserver `publicToken` en **localStorage / URL query** dès la création de ré
 
 ---
 
-## 3. Flow voyageur (vue d'ensemble)
+## 3. Parcours voyageur (vue d'ensemble)
+
+### 3.1 Trois modes d'achat
+
+| Mode | Création | Token clé | Paiement | Billet émis | Notifications post-paiement |
+|------|----------|-----------|----------|-------------|----------------------------|
+| **Solo** | `POST /bookings` | `publicToken` booking | `POST /bookings/{token}/pay` | 1 billet / 1 siège | SMS + WhatsApp → `passengerPhone` |
+| **Pour un tiers** | `POST /bookings` (coords **passager**) | idem | `POST …/pay` + `payerPhone` optionnel | 1 billet au passager | Push MM → `payerPhone` (ou `passengerPhone` si omis) ; billet → `passengerPhone` |
+| **Groupe / famille** | `POST /booking-groups` | `publicToken` groupe | `POST /booking-groups/{token}/pay` | **1 seul billet groupé** (tous les sièges) | SMS + WhatsApp → `contactPhone` si renseigné |
+
+Le front choisit le mode **avant** la création du hold : solo/tiers → `/bookings` ; groupe → `/booking-groups`.
+
+### 3.2 Flow solo ou achat pour tiers
 
 ```
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────┐
@@ -86,15 +98,43 @@ Conserver `publicToken` en **localStorage / URL query** dès la création de ré
          ┌──────────────────┐    ┌─────────────────────┐    ┌─────────────┐
          │ Paiement         │───▶│ Confirmation        │───▶│ Billet      │
          │ POST …/pay       │    │ POST …/check-status │    │ GET …/ticket│
-         │ (MM ou Carte)    │    │ (polling fallback)  │    │ GET …/pdf   │
+         │ (+ payerPhone?)  │    │ (polling fallback)  │    │ GET …/pdf   │
          └──────────────────┘    └─────────────────────┘    └─────────────┘
 ```
+
+**Achat pour un tiers :** à l'étape « passager », saisir nom + téléphone du **voyageur**. À l'étape paiement MM, envoyer `payerPhone` = numéro du payeur (celui qui valide le push USSD).
+
+### 3.3 Flow groupe / famille
+
+```
+┌─────────────┐    ┌──────────────┐    ┌─────────────────────┐    ┌──────────────┐
+│  Recherche  │───▶│ Multi-sièges │───▶│  Hold groupe        │───▶│  Paiement    │
+│ GET /offers │    │ GET …/seats  │    │ POST /booking-groups│    │ POST …/pay   │
+└─────────────┘    └──────────────┘    └─────────────────────┘    └──────┬───────┘
+                                                                          │
+                    ┌─────────────────────────────────────────────────────┘
+                    ▼
+         ┌─────────────────────┐    ┌─────────────────────────────────────┐
+         │ POST …/check-status │───▶│ 1 billet groupé                     │
+         │ (même token groupe) │    │ GET …/booking-groups/{token}/ticket │
+         └─────────────────────┘    │ GET …/ticket/pdf                  │
+                                    └─────────────────────────────────────┘
+```
+
+**UX groupe recommandée :** (1) nom du groupe → (2) sélection multi-sièges sur le plan → (3) détails passagers optionnels par siège → (4) `contactPhone` organisateur → (5) paiement unique (`quote.total`).
 
 Webhook FlexPay → backend (`POST /api/payments/webhook/flexpay`) — **pas appelé par le front**.
 
 ---
 
 ## 4. Catalogue des routes
+
+| Domaine | Routes principales |
+|---------|-------------------|
+| Catalogue | `GET /offers`, `GET /offers/{id}`, `GET …/quote`, `GET …/seats` |
+| Solo | `POST /bookings`, `GET\|POST /bookings/{token}/*` |
+| Groupe | `POST /booking-groups`, `GET\|POST /booking-groups/{token}/*` |
+| Paiement carte | `GET /payments/{paymentId}/card/form` |
 
 ### 4.1 Healthcheck
 
@@ -265,62 +305,6 @@ Content-Type: application/json
 
 > **Achat pour un tiers :** renseignez ici les coordonnées du **passager** (celui qui voyage). Le numéro Mobile Money du payeur se transmet à l'étape paiement via `payerPhone` (§ 6.1).
 
-### 5.2 Réservation groupée (famille / groupe)
-
-Pour acheter plusieurs places en une seule commande :
-
-```http
-POST /api/public/agency/booking-groups
-Content-Type: application/json
-
-{
-  "offerId": "AO…",
-  "travelDate": "2026-09-15",
-  "groupName": "Famille Kabongo",
-  "contactPhone": "+243812345678",
-  "passengers": [
-    {
-      "seatNumber": "01A",
-      "passengerName": "Jean Kabongo",
-      "passengerId": "ID-100",
-      "passengerPhone": "+243812345678"
-    },
-    {
-      "seatNumber": "01B",
-      "passengerName": "Marie Kabongo",
-      "passengerId": "ID-101",
-      "passengerPhone": "+243899999999"
-    }
-  ]
-}
-```
-
-| Champ | Requis | Contraintes |
-|-------|--------|-------------|
-| `groupName` | oui | max 120 — nom du groupe ou de la famille |
-| `contactPhone` | non | max 20 — contact organisateur / payeur |
-| `passengers` | oui | **2 à 20** entrées — **seul `seatNumber` est requis** |
-| `passengers[].seatNumber` | oui | Sièges distincts |
-| `passengers[].passengerName` | non | Optionnel — affiché sur le billet groupe si renseigné |
-| `passengers[].passengerId` | non | Optionnel (défaut `SEAT-XX`) |
-| `passengers[].passengerPhone` | non | Optionnel |
-| `contactPhone` | recommandé | Reçoit **un seul** billet groupe (SMS + WhatsApp + PDF) |
-
-Réponse **201** : `publicToken`, `groupId`, `groupName`, `passengers[]`, `quote.total` = somme de toutes les places. Après paiement : **un seul billet** (`ticketReference`, `pdfUrl`).
-
-**Endpoints groupés** (même logique que billet solo, préfixe `/booking-groups/`) :
-
-| Action | Route |
-|--------|-------|
-| Lire | `GET …/booking-groups/{publicToken}` |
-| Annuler | `POST …/booking-groups/{publicToken}/cancel` |
-| Payer | `POST …/booking-groups/{publicToken}/pay` (+ `payerPhone` optionnel) |
-| Poll paiement | `POST …/booking-groups/{publicToken}/pay/check-status` |
-| Billet groupe émis | `GET …/booking-groups/{publicToken}/ticket` |
-| PDF billet groupe | `GET …/booking-groups/{publicToken}/ticket/pdf` |
-
-**UX recommandée :** étape 1 nom du groupe → étape 2 sélection multi-sièges → étape 3 formulaire passager par siège → étape 4 paiement unique (montant total).
-
 Réponse **201** (test `testCreateOnlineBookingReturnsTokenAndQuote`) :
 
 ```json
@@ -365,6 +349,124 @@ Réponse **201** (test `testCreateOnlineBookingReturnsTokenAndQuote`) :
 | Offre hors ligne | 404 | `Offer "…" not found or not available online.` |
 | Trop de requêtes | 429 | `Too many requests. Please retry later.` + header `Retry-After` |
 
+### 5.2 Réservation groupée (famille / groupe)
+
+Pour acheter **plusieurs sièges en une seule commande** avec **un seul billet** après paiement :
+
+```http
+POST /api/public/agency/booking-groups
+Content-Type: application/json
+
+{
+  "offerId": "AO…",
+  "travelDate": "2026-09-15",
+  "groupName": "Famille Kabongo",
+  "contactPhone": "+243812345678",
+  "passengers": [
+    { "seatNumber": "01A" },
+    {
+      "seatNumber": "01B",
+      "passengerName": "Marie Kabongo",
+      "passengerId": "ID-101"
+    }
+  ]
+}
+```
+
+| Champ | Requis | Contraintes |
+|-------|--------|-------------|
+| `offerId` | oui | Offre online |
+| `travelDate` | oui | `YYYY-MM-DD` |
+| `groupName` | oui | max 120 — nom affiché sur le billet groupé |
+| `contactPhone` | non | max 20 — organisateur ; reçoit SMS + WhatsApp + lien PDF (**recommandé**) |
+| `passengers` | oui | **2 à 20** entrées |
+| `passengers[].seatNumber` | oui | Sièges **distincts**, format `01A` |
+| `passengers[].passengerName` | non | Optionnel — manifest interne / affichage détail |
+| `passengers[].passengerId` | non | Optionnel (défaut serveur `SEAT-{seatNumber}`) |
+| `passengers[].passengerPhone` | non | Optionnel — **non utilisé** pour les notifications groupe |
+
+> Seul `seatNumber` est obligatoire par ligne. Les champs passager servent au manifeste ; le billet émis porte `passengerName` = `groupName` et `passengerPhone` = `contactPhone`.
+
+Réponse **201** (test `testCreateGroupBookingWithOptionalPassengerFields`) :
+
+```json
+{
+  "publicToken": "64_hex_chars…",
+  "groupId": "BG…",
+  "groupName": "Famille Kabongo",
+  "contactPhone": "+243812345678",
+  "status": "PENDING",
+  "paymentStatus": "UNPAID",
+  "expiresAt": "2026-09-08T10:15:00+01:00",
+  "isExpired": false,
+  "travelDate": "2026-09-15",
+  "quote": {
+    "ticketPrice": 170000,
+    "passPrice": 6000,
+    "total": 176000,
+    "currency": "CDF",
+    "hasExistingPass": false,
+    "passengerCount": 2
+  },
+  "offer": {
+    "id": "AO…",
+    "label": "PublicBooking Express",
+    "origin": "Kinshasa",
+    "destination": "Matadi",
+    "departureTime": "06:00"
+  },
+  "passengers": [
+    {
+      "bookingId": "AB…",
+      "seatNumber": "01A",
+      "passengerName": null,
+      "passengerId": "SEAT-01A",
+      "passengerPhone": null,
+      "okapiPassRef": null,
+      "quote": {
+        "ticketPrice": 85000,
+        "passPrice": 3000,
+        "total": 88000,
+        "currency": "CDF",
+        "hasExistingPass": false
+      }
+    },
+    {
+      "bookingId": "AB…",
+      "seatNumber": "01B",
+      "passengerName": "Marie Kabongo",
+      "passengerId": "ID-101",
+      "passengerPhone": null,
+      "okapiPassRef": null,
+      "quote": { "…": "…" }
+    }
+  ],
+  "ticketReference": null,
+  "pdfUrl": null
+}
+```
+
+**Endpoints groupés** (même logique que solo, préfixe `/booking-groups/`) :
+
+| Action | Route |
+|--------|-------|
+| Lire | `GET …/booking-groups/{publicToken}` |
+| Annuler | `POST …/booking-groups/{publicToken}/cancel` |
+| Payer | `POST …/booking-groups/{publicToken}/pay` (+ `payerPhone` optionnel, § 6.4) |
+| Poll paiement | `POST …/booking-groups/{publicToken}/pay/check-status` |
+| Billet groupé émis | `GET …/booking-groups/{publicToken}/ticket` |
+| Wrapper ticket | `GET …/booking-groups/{publicToken}/tickets` |
+| PDF billet groupé | `GET …/booking-groups/{publicToken}/ticket/pdf` |
+
+Après paiement réussi : `ticketReference` et `pdfUrl` sont renseignés sur la ressource groupe ; **un seul** SMS/WhatsApp part vers `contactPhone` (pas un message par siège).
+
+| Erreur | Code | Message |
+|--------|------|---------|
+| Moins de 2 passagers | 400 | Validation Symfony (`passengers` min 2) |
+| Siège déjà pris | 409 | `Le siège … est déjà réservé.` |
+| Sièges dupliqués | 422 | Règle métier groupe |
+| Hold expiré (lecture) | auto | `status: CANCELLED`, `isExpired: true` |
+
 ### 5.3 Lire une réservation
 
 ```http
@@ -397,6 +499,20 @@ Body vide. Réponse **200** :
 |--------|------|---------|
 | Déjà payée / paiement en cours | 409 | `Cannot cancel a booking while payment is in progress or completed.` |
 | Pas annulable | 422 | `Only pending online bookings can be cancelled.` |
+
+### 5.5 Lire / annuler un groupe
+
+```http
+GET /api/public/agency/booking-groups/{publicToken}
+POST /api/public/agency/booking-groups/{publicToken}/cancel
+```
+
+Même shape que la création groupe (§ 5.2). Annulation : body vide, réponse **200** avec `status: CANCELLED` (test `testCancelUnpaidGroupBooking`).
+
+| Erreur | Code | Message |
+|--------|------|---------|
+| Token inconnu | 404 | `Booking group not found.` |
+| Déjà payé | 409 | Conflit annulation groupe payé |
 
 ---
 
@@ -550,6 +666,60 @@ Après redirect carte (page success) :
 |--------|------|---------|
 | Aucun paiement | 404 | `No payment found for this booking.` |
 
+### 6.4 Paiement groupe
+
+Même DTO que le solo (`PayPublicAgencyBookingDto`) :
+
+```http
+POST /api/public/agency/booking-groups/{publicToken}/pay
+Content-Type: application/json
+
+{
+  "method": "MOBILE_MONEY",
+  "payerPhone": "+243811111111"
+}
+```
+
+| Champ | Comportement groupe |
+|-------|---------------------|
+| `method` | `MOBILE_MONEY` ou `CARD` (obligatoire) |
+| `payerPhone` | Push MM sur ce numéro si fourni ; sinon sur `contactPhone` du groupe |
+
+Polling :
+
+```http
+POST /api/public/agency/booking-groups/{publicToken}/pay/check-status
+```
+
+Réponse payée (test `testGroupPaymentIssuesSingleGroupedTicket`) — shape `PublicAgencyBookingGroupPaymentResource` :
+
+```json
+{
+  "publicToken": "…",
+  "groupId": "BG…",
+  "groupName": "Famille Kabongo",
+  "paymentId": "AP…",
+  "paymentStatus": "PAID",
+  "paymentMethod": "MOBILE_MONEY",
+  "amount": 176000,
+  "currency": "CDF",
+  "passengerCount": 2,
+  "ticketReferences": ["VP-2026-00042"],
+  "groupStatus": "CONFIRMED",
+  "groupPaymentStatus": "PAID"
+}
+```
+
+> **`ticketReferences`** contient **une seule** référence pour tout le groupe. Utiliser ensuite `GET …/ticket` pour le détail QR / sièges.
+
+**UX MM groupe :** même boucle polling que § 6.3, mais sur les routes `/booking-groups/…`. Après `PAID`, rediriger vers l'écran billet groupé.
+
+| Erreur | Code | Message |
+|--------|------|---------|
+| Hold expiré | 422 | `Booking hold has expired.` |
+| Déjà payé | 409 | `Group is already paid.` |
+| Token inconnu | 404 | `Booking group not found.` |
+
 ---
 
 ## 7. Billet & PDF
@@ -607,6 +777,65 @@ Réponse **200** :
 
 Ouvrir dans un nouvel onglet ou déclencher un download. Pas de JSON.
 
+### 7.3 Billet groupé (JSON + PDF)
+
+```http
+GET /api/public/agency/booking-groups/{publicToken}/ticket
+```
+
+Disponible **uniquement après paiement réussi**. Réponse **200** (test `testGroupPaymentIssuesSingleGroupedTicket`) :
+
+```json
+{
+  "publicToken": "…",
+  "ticketId": "AK…",
+  "reference": "VP-2026-00042",
+  "status": "ISSUED",
+  "passengerName": "Famille Kabongo",
+  "passengerPhone": "+243812345678",
+  "seatNumber": "02B, 02C",
+  "travelDate": "2026-09-15",
+  "ticketPrice": 170000,
+  "passPrice": 6000,
+  "currency": "CDF",
+  "hasExistingPass": false,
+  "qrPayload": "VP-2026-00042|…",
+  "offer": {
+    "id": "AO…",
+    "label": "PublicBooking Express",
+    "origin": "Kinshasa",
+    "destination": "Matadi",
+    "departureTime": "06:00"
+  },
+  "pdfUrl": "/api/public/agency/booking-groups/{publicToken}/ticket/pdf",
+  "isGroupTicket": true,
+  "groupName": "Famille Kabongo",
+  "groupSeats": ["02B", "02C"],
+  "passengerCount": 2
+}
+```
+
+#### Champs spécifiques groupe — rendu UI
+
+| Champ | Usage front |
+|-------|-------------|
+| `isGroupTicket` | `true` → afficher badge « Billet groupe » |
+| `groupName` | Titre principal (famille / équipe) |
+| `groupSeats` | Liste des sièges à afficher (badges ou tableau) |
+| `passengerCount` | Nombre de voyageurs |
+| `seatNumber` | Chaîne concaténée (fallback si `groupSeats` absent) |
+| `passengerName` / `passengerPhone` | = `groupName` / `contactPhone` du hold |
+
+PDF binaire :
+
+```http
+GET /api/public/agency/booking-groups/{publicToken}/ticket/pdf
+```
+
+Réponse **200** : `Content-Type: application/pdf`, body `%PDF…` (test `testDownloadGroupedTicketPdf`).
+
+Endpoint alternatif `GET …/tickets` renvoie un wrapper `{ publicToken, groupId, groupName, ticket: { … } }` — préférer `GET …/ticket` pour l'écran voyageur.
+
 ---
 
 ## 8. Paiement carte — pages redirect front
@@ -644,6 +873,8 @@ Par IP client, fenêtre glissante **60 secondes** :
 |----------|--------|
 | `POST /api/public/agency/bookings` | 10 / min |
 | `POST /api/public/agency/bookings/{token}/pay` | 5 / min |
+
+> Les routes `/booking-groups/*` ne sont **pas** rate-limitées actuellement ; appliquer un backoff côté front si vous enchaînez les créations groupe.
 
 Réponse **429** :
 
@@ -698,7 +929,15 @@ passPrice     = 0 si Pass valide (okapiPassRef), sinon tarif ROUTIER
 | Billet agence | `VP-YYYY-#####` |
 | Pass OkapiPass | `OP-…` |
 
-Notifications post-paiement (backend, automatique) : **SMS + WhatsApp** au `passengerPhone` avec réf billet et lien PDF relatif.
+#### Notifications post-paiement (backend automatique)
+
+| Mode | Destinataire SMS + WhatsApp | Push Mobile Money |
+|------|----------------------------|-------------------|
+| Solo | `passengerPhone` | `payerPhone` ?? `passengerPhone` |
+| Achat pour tiers | `passengerPhone` (billet) | `payerPhone` |
+| Groupe | `contactPhone` (si renseigné) — **1 seul envoi** | `payerPhone` ?? `contactPhone` |
+
+Le message groupe inclut la liste des sièges et le lien PDF relatif. Sans `contactPhone` sur un groupe, aucune notification n'est envoyée (le billet reste accessible via `GET …/ticket`).
 
 ---
 
@@ -723,7 +962,7 @@ Sans `onlineSales: true`, l'offre est invisible dans `GET /api/public/agency/off
 | Code | Cas B2C |
 |------|---------|
 | 200 | GET, actions POST (pay, cancel, check-status) |
-| 201 | Création réservation |
+| 201 | Création réservation solo ou groupe |
 | 400 | Body invalide / validation Symfony |
 | 404 | Offre, booking, ticket ou paiement introuvable |
 | 409 | Conflit siège, déjà payé, paiement en cours |
@@ -737,6 +976,8 @@ Erreurs API Platform : format **RFC 7807** (`title`, `detail`, `status`).
 
 ## 14. Ordre d'intégration recommandé (écrans)
 
+### Parcours solo (MVP)
+
 1. **Recherche** — `GET /offers` + filtres origin/destination
 2. **Détail trajet** — `GET /offers/{id}` + `GET …/quote`
 3. **Seat picker** — `GET …/seats?travelDate=` + rendu `layout.seatIds`
@@ -747,6 +988,22 @@ Erreurs API Platform : format **RFC 7807** (`title`, `detail`, `status`).
 8. **Billet** — `GET …/ticket` (QR) + lien PDF
 9. **Gestion erreurs** — 409 siège, 422 expiré, 429 rate limit
 10. **Annulation** — `POST …/cancel` avant paiement
+
+### Extension — achat pour un tiers
+
+11. **Toggle UI** « J'achète pour quelqu'un d'autre » — formulaire passager inchangé (coords voyageur)
+12. **Étape paiement MM** — champ optionnel payeur + envoi `payerPhone` dans `POST …/pay`
+13. **Copy UX** — « Validez le paiement sur le téléphone +243… » (numéro payeur) ; « Le billet sera envoyé au passager »
+
+### Extension — réservation groupée
+
+14. **Mode groupe** — toggle ou CTA « Réserver plusieurs places »
+15. **Nom groupe + contactPhone** — champs obligatoires / recommandés
+16. **Seat picker multi** — sélection 2–20 sièges, puis `POST /booking-groups`
+17. **Détail passagers** — champs optionnels par siège (seul `seatNumber` requis côté API)
+18. **Paiement unique** — `POST /booking-groups/{token}/pay` (`amount` = `quote.total`)
+19. **Écran billet groupé** — `GET …/ticket` : afficher `groupSeats`, `passengerCount`, QR unique
+20. **PDF groupe** — `GET …/ticket/pdf`
 
 ---
 
@@ -765,6 +1022,11 @@ Erreurs API Platform : format **RFC 7807** (`title`, `detail`, `status`).
 - [ ] CORS testé depuis le domaine de déploiement
 - [ ] Distinguer flux B2C (`/api/public/agency/*`) vs portail partenaire
 - [ ] Ne pas appeler `/api/payments/webhook/flexpay` depuis le front
+- [ ] **Achat tiers :** champ payeur + `payerPhone` à l'étape paiement MM
+- [ ] **Groupe :** flux `/booking-groups`, seat picker multi, token groupe distinct
+- [ ] **Groupe :** afficher billet unique (`isGroupTicket`, `groupSeats`, `passengerCount`)
+- [ ] **Groupe :** polling sur `/booking-groups/{token}/pay/check-status`
+- [ ] **Groupe :** `contactPhone` recommandé (notifications + billet PDF par SMS/WA)
 
 ---
 
