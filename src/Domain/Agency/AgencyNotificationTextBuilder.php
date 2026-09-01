@@ -29,14 +29,20 @@ final class AgencyNotificationTextBuilder
     {
         $offer = $ticket->getOffer();
         $total = $ticket->getTicketPrice() + $ticket->getPassPrice();
+        $seatLabel = $ticket->isGroupTicket()
+            ? implode(', ', $ticket->getGroupSeatList())
+            : (string) $ticket->getSeatNumber();
+
+        $typeLabel = $ticket->isGroupTicket() ? 'Billet groupe' : 'Billet';
 
         return sprintf(
-            'OkapiPass: Billet %s emis. Trajet %s → %s le %s, siege %s. Total %d %s.',
+            'OkapiPass: %s %s emis. Trajet %s → %s le %s, sieges %s. Total %d %s.',
+            $typeLabel,
             $ticket->getReference(),
             $offer?->getOrigin() ?? '?',
             $offer?->getDestination() ?? '?',
             $ticket->getTravelDate()?->format('d/m/Y') ?? '?',
-            $ticket->getSeatNumber(),
+            $seatLabel,
             $total,
             $ticket->getCurrency(),
         );

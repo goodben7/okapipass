@@ -126,4 +126,61 @@ final class SeatOccupancyService
 
         return $seat;
     }
+
+    /**
+     * @param list<string|null> $seatNumbers
+     *
+     * @return list<string>
+     */
+    public function assertSeatsSelectable(
+        AgencyOffer $offer,
+        \DateTimeImmutable $travelDate,
+        array $seatNumbers,
+        ?string $excludeBookingId = null,
+    ): array {
+        if ([] === $seatNumbers) {
+            throw new UnprocessableEntityException('Sélectionnez au moins un siège.');
+        }
+
+        $normalized = [];
+        $seen = [];
+        foreach ($seatNumbers as $seatNumber) {
+            $seat = $this->normalizeSeat($seatNumber);
+            if ('' === $seat) {
+                throw new UnprocessableEntityException('Sélectionnez un siège sur le plan du bus.');
+            }
+            if (isset($seen[$seat])) {
+                throw new ConflictException(sprintf('Le siège %s est sélectionné plusieurs fois.', $seat));
+            }
+            $seen[$seat] = true;
+            $normalized[] = $seat;
+        }
+
+        $transport = $offer->getTransport();
+        if (null === $transport) {
+            throw new UnprocessableEntityException('Offer has no transport.');
+        }
+
+        foreach ($normalized as $seat) {
+            if (!$this->layoutBuilder->isValidSeat((string) $transport->getKind(), (int) $transport->getCapacity(), $seat)) {
+                throw new UnprocessableEntityException(sprintf('Siège %s invalide pour ce véhicule.', $seat));
+            }
+        }
+
+        $occupied = $this->occupiedSeats($offer, $travelDate, $excludeBookingId);
+        $pending = [];
+        foreach ($normalized as $seat) {
+            if (\in_array($seat, $occupied, true) || \in_array($seat, $pending, true)) {
+                throw new ConflictException(sprintf('Le siège %s est déjà réservé.', $seat));
+            }
+            $pending[] = $seat;
+        }
+
+        $capacity = (int) $transport->getCapacity();
+        if (\count($occupied) + \count($normalized) > $capacity) {
+            throw new ConflictException('Bus complet — places insuffisantes pour ce groupe.');
+        }
+
+        return $normalized;
+    }
 }

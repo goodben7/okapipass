@@ -13,7 +13,7 @@ final class AgencyQrPayloadBuilder
     {
         $payload = [
             'v' => 1,
-            'type' => 'agency_ticket',
+            'type' => $ticket->isGroupTicket() ? 'agency_group_ticket' : 'agency_ticket',
             'ref' => $ticket->getReference(),
             'seat' => $ticket->getSeatNumber(),
             'date' => $ticket->getTravelDate()?->format('Y-m-d'),
@@ -22,6 +22,11 @@ final class AgencyQrPayloadBuilder
             'passenger' => $ticket->getPassengerName(),
             'pass' => $ticket->getOkapiPassRef(),
         ];
+
+        if ($ticket->isGroupTicket()) {
+            $payload['seats'] = $ticket->getGroupSeatList();
+            $payload['groupId'] = $ticket->getBookingGroup()?->getId();
+        }
 
         return base64_encode(json_encode($payload, \JSON_THROW_ON_ERROR));
     }

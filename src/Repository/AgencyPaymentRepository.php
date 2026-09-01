@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AgencyBooking;
+use App\Entity\AgencyBookingGroup;
 use App\Entity\AgencyPayment;
 use App\Entity\AgencyRentalContract;
 use App\Entity\AgencyTicket;
@@ -31,6 +32,19 @@ class AgencyPaymentRepository extends ServiceEntityRepository
             'booking' => $booking,
             'status' => AgencyPayment::STATUS_PENDING,
         ]);
+    }
+
+    public function findOpenForBookingGroup(AgencyBookingGroup $group): ?AgencyPayment
+    {
+        return $this->findOneBy([
+            'bookingGroup' => $group,
+            'status' => AgencyPayment::STATUS_PENDING,
+        ]);
+    }
+
+    public function findLatestForBookingGroup(AgencyBookingGroup $group): ?AgencyPayment
+    {
+        return $this->findOneBy(['bookingGroup' => $group], ['createdAt' => 'DESC']);
     }
 
     public function findOneByProviderTransactionId(string $transactionId): ?AgencyPayment

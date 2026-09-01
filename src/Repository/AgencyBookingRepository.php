@@ -73,6 +73,7 @@ class AgencyBookingRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('b')
             ->andWhere('b.channel = :online')
+            ->andWhere('b.bookingGroup IS NULL')
             ->andWhere('b.status = :pending')
             ->andWhere('b.expiresAt IS NOT NULL')
             ->andWhere('b.expiresAt < :now')

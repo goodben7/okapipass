@@ -41,7 +41,9 @@ final class AgencyTicketPdfGenerator
         $issuedAt = $ticket->getCreatedAt() ?? new \DateTimeImmutable();
         $transport = $offer?->getTransport();
 
-        $html = $this->twig->render('pdf/agency_ticket.html.twig', [
+        $html = $this->twig->render(
+            $ticket->isGroupTicket() ? 'pdf/agency_group_ticket.html.twig' : 'pdf/agency_ticket.html.twig',
+            [
             'ticket' => $ticket,
             'offer' => $offer,
             'agency' => $agency,
@@ -53,6 +55,9 @@ final class AgencyTicketPdfGenerator
             'originLabel' => $this->resolveLocationLabel($offer?->getOrigin()),
             'destinationLabel' => $this->resolveLocationLabel($offer?->getDestination()),
             'routeLabel' => $offer?->getLabel(),
+            'groupSeats' => $ticket->getGroupSeatList(),
+            'passengerCount' => \count($ticket->getGroupSeatList()),
+            'groupManifest' => $this->decodeGroupManifest($ticket),
         ]);
 
         $options = new Options();
@@ -83,5 +88,29 @@ final class AgencyTicketPdfGenerator
         }
 
         return $value;
+    }
+
+    /** @return list<array{seat: string, passengerName?: string|null, passengerId?: string|null, passengerPhone?: string|null}> */
+    private function decodeGroupManifest(AgencyTicket $ticket): array
+    {
+        if (!$ticket->isGroupTicket()) {
+            return [];
+        }
+
+        $notes = $ticket->getNotes();
+        if (null === $notes || '' === trim($notes)) {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($notes, true, 512, \JSON_THROW_ON_ERROR);
+            if (!\is_array($decoded['groupManifest'] ?? null)) {
+                return [];
+            }
+
+            return $decoded['groupManifest'];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 }

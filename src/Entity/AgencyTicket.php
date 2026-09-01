@@ -126,6 +126,19 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_ticket:get'])]
     private ?AgencyBooking $booking = null;
 
+    #[ORM\OneToOne(inversedBy: 'ticket')]
+    #[ORM\JoinColumn(name: 'AK_BOOKING_GROUP', nullable: true, referencedColumnName: 'BG_ID')]
+    #[Groups(['agency_ticket:get'])]
+    private ?AgencyBookingGroup $bookingGroup = null;
+
+    #[ORM\Column(name: 'AK_IS_GROUP')]
+    #[Groups(['agency_ticket:get'])]
+    private bool $isGroupTicket = false;
+
+    #[ORM\Column(name: 'AK_GROUP_SEATS', type: Types::TEXT, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $groupSeats = null;
+
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(name: 'AK_OFFER', nullable: false, referencedColumnName: 'AO_ID')]
     #[Groups(['agency_ticket:get'])]
@@ -253,6 +266,57 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
         }
 
         return $this;
+    }
+
+    public function getBookingGroup(): ?AgencyBookingGroup
+    {
+        return $this->bookingGroup;
+    }
+
+    public function setBookingGroup(?AgencyBookingGroup $bookingGroup): static
+    {
+        $this->bookingGroup = $bookingGroup;
+        if (null !== $bookingGroup && $bookingGroup->getTicket() !== $this) {
+            $bookingGroup->setTicket($this);
+        }
+
+        return $this;
+    }
+
+    public function isGroupTicket(): bool
+    {
+        return $this->isGroupTicket;
+    }
+
+    public function setIsGroupTicket(bool $isGroupTicket): static
+    {
+        $this->isGroupTicket = $isGroupTicket;
+
+        return $this;
+    }
+
+    public function getGroupSeats(): ?string
+    {
+        return $this->groupSeats;
+    }
+
+    public function setGroupSeats(?string $groupSeats): static
+    {
+        $this->groupSeats = $groupSeats;
+
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getGroupSeatList(): array
+    {
+        if (null === $this->groupSeats || '' === trim($this->groupSeats)) {
+            return [];
+        }
+
+        $seats = array_map('trim', explode(',', $this->groupSeats));
+
+        return array_values(array_filter($seats, static fn (string $s): bool => '' !== $s));
     }
 
     public function getOffer(): ?AgencyOffer

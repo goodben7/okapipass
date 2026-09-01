@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Manager\PublicAgencyBookingManager;
+use App\Manager\PublicAgencyGroupBookingManager;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,7 +16,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class ExpirePublicAgencyBookingsCommand extends Command
 {
-    public function __construct(private PublicAgencyBookingManager $bookings)
+    public function __construct(private PublicAgencyBookingManager $bookings, private PublicAgencyGroupBookingManager $groups)
     {
         parent::__construct();
     }
@@ -23,8 +24,9 @@ final class ExpirePublicAgencyBookingsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $count = $this->bookings->expirePendingBookings();
-        $io->success(sprintf('Expired %d online booking(s).', $count));
+        $singleCount = $this->bookings->expirePendingBookings();
+        $groupCount = $this->groups->expirePendingGroups();
+        $io->success(sprintf('Expired %d online booking(s) and %d group booking(s).', $singleCount, $groupCount));
 
         return Command::SUCCESS;
     }

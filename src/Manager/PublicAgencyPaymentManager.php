@@ -2,12 +2,14 @@
 
 namespace App\Manager;
 
+use App\ApiResource\Public\PublicAgencyBookingGroupPaymentResource;
 use App\ApiResource\Public\PublicAgencyBookingPaymentResource;
 use App\ApiResource\Public\PublicAgencyTicketResource;
 use App\Contract\AgencyFlexPayClientInterface;
 use App\Domain\Agency\AgencyPricingService;
 use App\Domain\Agency\AgencyTicketIssuanceService;
 use App\Entity\AgencyBooking;
+use App\Entity\AgencyBookingGroup;
 use App\Entity\AgencyOffer;
 use App\Entity\AgencyPayment;
 use App\Entity\AgencyTicket;
@@ -15,6 +17,7 @@ use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
 use App\Exception\UnprocessableEntityException;
 use App\Message\CheckAgencyPaymentStatusMessage;
+use App\Repository\AgencyBookingGroupRepository;
 use App\Repository\AgencyBookingRepository;
 use App\Repository\AgencyPaymentRepository;
 use App\Service\PublicAgency\PublicAgencyPaymentNotifier;
@@ -30,6 +33,7 @@ final class PublicAgencyPaymentManager
     public function __construct(
         private EntityManagerInterface $em,
         private AgencyBookingRepository $bookings,
+        private AgencyBookingGroupRepository $bookingGroups,
         private AgencyPaymentRepository $payments,
         private AgencyPricingService $pricing,
         private AgencyTicketIssuanceService $ticketIssuance,
@@ -114,6 +118,97 @@ final class PublicAgencyPaymentManager
         return $this->toPaymentResource($booking, $payment);
     }
 
+    public function initiateGroupPayment(string $publicToken, string $method, ?string $payerPhone = null): PublicAgencyBookingGroupPaymentResource
+    {
+        $group = $this->requireOnlineGroupByToken($publicToken);
+
+        if ($group->isExpired()) {
+            throw new UnprocessableEntityException('Booking group hold has expired.');
+        }
+
+        $existing = $this->payments->findOpenForBookingGroup($group);
+        if ($existing instanceof AgencyPayment) {
+            if ($existing->getMethod() !== $method) {
+                throw new ConflictException('A payment is already in progress for this booking group.');
+            }
+
+            return $this->toGroupPaymentResource($group, $existing);
+        }
+
+        $group = $this->requirePayableGroup($group);
+
+        $offer = $group->getOffer();
+        if (!$offer instanceof AgencyOffer) {
+            throw new UnprocessableEntityException('Booking group has no offer.');
+        }
+
+        $amount = $this->computeGroupAmount($group, $offer);
+
+        $payment = new AgencyPayment();
+        $payment->setAgency($group->getAgency());
+        $payment->setBookingGroup($group);
+        $payment->setReference($this->nextReference());
+        $payment->setAmount($amount);
+        $payment->setCurrency($offer->getCurrency());
+        $payment->setMethod($method);
+        $payment->setStatus(AgencyPayment::STATUS_PENDING);
+        $payment->setChannel(AgencyPayment::CHANNEL_ONLINE);
+        $payment->setProvider(AgencyPayment::PROVIDER_FLEXPAY);
+
+        $group->setPaymentStatus(AgencyBookingGroup::PAYMENT_STATUS_PENDING);
+        $group->syncChildBookingStates();
+
+        $this->em->persist($payment);
+        $this->em->flush();
+
+        if (AgencyPayment::METHOD_CARD === $method) {
+            $payment->setProviderResponse([
+                'mode' => 'HTML_FORM',
+                'formUrl' => \sprintf('/api/public/agency/payments/%s/card/form', (string) $payment->getId()),
+            ]);
+            $this->em->flush();
+
+            return $this->toGroupPaymentResource($group, $payment);
+        }
+
+        $defaultPhone = (string) ($group->getContactPhone() ?? $group->getBookings()->first()?->getPassengerPhone() ?? '');
+        $mmPhone = $this->resolveMobileMoneyPhone($payerPhone, $defaultPhone);
+        $payment->setPayerPhone($mmPhone);
+
+        $response = $this->flexPay->initiate($payment, $mmPhone);
+        $payment->setProviderResponse($response->raw);
+
+        if ($response->isSuccess()) {
+            $payment->setProviderTransactionId($response->transactionId);
+            $this->schedulePaymentStatusPoll($payment);
+        } else {
+            $payment->setStatus(AgencyPayment::STATUS_FAILED);
+            $group->setPaymentStatus(AgencyBookingGroup::PAYMENT_STATUS_FAILED);
+            $group->syncChildBookingStates();
+        }
+
+        $this->em->flush();
+
+        return $this->toGroupPaymentResource($group, $payment);
+    }
+
+    public function checkGroupPaymentByPublicToken(string $publicToken): PublicAgencyBookingGroupPaymentResource
+    {
+        $group = $this->requireOnlineGroupByToken($publicToken);
+        $payment = $this->payments->findOpenForBookingGroup($group)
+            ?? $this->payments->findLatestForBookingGroup($group);
+
+        if (!$payment instanceof AgencyPayment) {
+            throw new UnavailableDataException('No payment found for this booking group.');
+        }
+
+        $this->refreshPaymentStatus($payment);
+        $this->em->refresh($group);
+        $this->em->refresh($payment);
+
+        return $this->toGroupPaymentResource($group, $payment);
+    }
+
     public function checkPaymentByPublicToken(string $publicToken): PublicAgencyBookingPaymentResource
     {
         $booking = $this->requireOnlineBookingByToken($publicToken);
@@ -163,9 +258,17 @@ final class PublicAgencyPaymentManager
 
             if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
                 $hadTicket = null !== $payment->getTicket();
-                $ticket = $this->fulfillSuccessfulPayment($payment);
-                if (!$hadTicket) {
-                    $this->notifier->notifyPaid($payment, $ticket);
+                $hadGroupTickets = $this->groupHasTickets($payment);
+                if ($payment->getBookingGroup() instanceof AgencyBookingGroup) {
+                    $ticket = $this->fulfillSuccessfulGroupPayment($payment);
+                    if (!$hadGroupTickets) {
+                        $this->notifier->notifyPaid($payment, $ticket);
+                    }
+                } else {
+                    $ticket = $this->fulfillSuccessfulPayment($payment);
+                    if (!$hadTicket) {
+                        $this->notifier->notifyPaid($payment, $ticket);
+                    }
                 }
 
                 return true;
@@ -314,6 +417,43 @@ final class PublicAgencyPaymentManager
         return $ticket;
     }
 
+    public function fulfillSuccessfulGroupPayment(AgencyPayment $payment): AgencyTicket
+    {
+        $payment = $this->payments->find($payment->getId());
+        if (!$payment instanceof AgencyPayment) {
+            throw new UnprocessableEntityException('Payment not found.');
+        }
+
+        $group = $payment->getBookingGroup();
+        if (!$group instanceof AgencyBookingGroup) {
+            throw new UnprocessableEntityException('Payment has no booking group.');
+        }
+
+        $group = $this->bookingGroups->find($group->getId());
+        if (!$group instanceof AgencyBookingGroup) {
+            throw new UnprocessableEntityException('Booking group not found.');
+        }
+
+        $existingTicket = $group->getTicket();
+        if (AgencyPayment::STATUS_PAID === $payment->getStatus() && $existingTicket instanceof AgencyTicket) {
+            return $existingTicket;
+        }
+
+        if ($group->isCancelled() || $group->isExpired()) {
+            throw new UnprocessableEntityException('Booking group is no longer valid.');
+        }
+
+        $now = new \DateTimeImmutable();
+        $payment->setStatus(AgencyPayment::STATUS_PAID);
+        $payment->setPaidAt($now);
+
+        $ticket = $this->ticketIssuance->issueFromGroup($group, sendSms: true);
+        $payment->setTicket($ticket);
+        $this->em->flush();
+
+        return $ticket;
+    }
+
     private function requirePayableBooking(AgencyBooking $booking): AgencyBooking
     {
         if (AgencyBooking::STATUS_PENDING !== $booking->getStatus()) {
@@ -417,6 +557,12 @@ final class PublicAgencyPaymentManager
         $booking = $payment->getBooking();
         if ($booking instanceof AgencyBooking && AgencyBooking::PAYMENT_STATUS_PAID !== $booking->getPaymentStatus()) {
             $booking->setPaymentStatus(AgencyBooking::PAYMENT_STATUS_FAILED);
+        }
+
+        $group = $payment->getBookingGroup();
+        if ($group instanceof AgencyBookingGroup && AgencyBookingGroup::PAYMENT_STATUS_PAID !== $group->getPaymentStatus()) {
+            $group->setPaymentStatus(AgencyBookingGroup::PAYMENT_STATUS_FAILED);
+            $group->syncChildBookingStates();
         }
     }
 
@@ -533,5 +679,93 @@ final class PublicAgencyPaymentManager
         }
 
         return $phone;
+    }
+
+    private function requireOnlineGroupByToken(string $publicToken): AgencyBookingGroup
+    {
+        $token = trim($publicToken);
+        if ('' === $token) {
+            throw new UnavailableDataException('Booking group not found.');
+        }
+
+        $group = $this->bookingGroups->findOneByPublicToken($token);
+        if (!$group instanceof AgencyBookingGroup) {
+            throw new UnavailableDataException('Booking group not found.');
+        }
+
+        return $group;
+    }
+
+    private function requirePayableGroup(AgencyBookingGroup $group): AgencyBookingGroup
+    {
+        if (AgencyBookingGroup::STATUS_PENDING !== $group->getStatus()) {
+            if (AgencyBookingGroup::STATUS_CONFIRMED === $group->getStatus() && null !== $group->getTicket()) {
+                throw new ConflictException('Booking group is already paid.');
+            }
+
+            throw new UnprocessableEntityException('Booking group is not payable.');
+        }
+
+        if (!\in_array($group->getPaymentStatus(), [
+            AgencyBookingGroup::PAYMENT_STATUS_UNPAID,
+            AgencyBookingGroup::PAYMENT_STATUS_FAILED,
+        ], true)) {
+            if (AgencyBookingGroup::PAYMENT_STATUS_PAID === $group->getPaymentStatus()) {
+                throw new ConflictException('Booking group is already paid.');
+            }
+
+            throw new ConflictException('A payment is already in progress for this booking group.');
+        }
+
+        return $group;
+    }
+
+    private function computeGroupAmount(AgencyBookingGroup $group, AgencyOffer $offer): int
+    {
+        $amount = 0;
+        foreach ($group->getBookings() as $booking) {
+            $quote = $this->pricing->quote($booking->getOkapiPassRef());
+            $amount += (int) $offer->getTicketPrice() + (int) $quote['passPrice'];
+        }
+
+        return $amount;
+    }
+
+    private function toGroupPaymentResource(AgencyBookingGroup $group, AgencyPayment $payment): PublicAgencyBookingGroupPaymentResource
+    {
+        $cardFormUrl = null;
+        if (AgencyPayment::METHOD_CARD === $payment->getMethod()) {
+            $cardFormUrl = \sprintf('/api/public/agency/payments/%s/card/form', (string) $payment->getId());
+        }
+
+        $ticketReferences = [];
+        $groupTicket = $group->getTicket();
+        if ($groupTicket instanceof AgencyTicket && null !== $groupTicket->getReference()) {
+            $ticketReferences[] = (string) $groupTicket->getReference();
+        }
+
+        return new PublicAgencyBookingGroupPaymentResource(
+            publicToken: (string) $group->getPublicToken(),
+            groupId: (string) $group->getId(),
+            groupName: (string) $group->getGroupName(),
+            paymentId: (string) $payment->getId(),
+            paymentStatus: $payment->getStatus(),
+            paymentMethod: $payment->getMethod(),
+            amount: $payment->getAmount(),
+            currency: $payment->getCurrency(),
+            passengerCount: $group->getBookings()->count(),
+            providerTransactionId: $payment->getProviderTransactionId(),
+            cardFormUrl: $cardFormUrl,
+            ticketReferences: $ticketReferences,
+            groupStatus: $group->getStatus(),
+            groupPaymentStatus: $group->getPaymentStatus(),
+        );
+    }
+
+    private function groupHasTickets(AgencyPayment $payment): bool
+    {
+        $group = $payment->getBookingGroup();
+
+        return $group instanceof AgencyBookingGroup && $group->getTicket() instanceof AgencyTicket;
     }
 }

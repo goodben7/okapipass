@@ -265,6 +265,62 @@ Content-Type: application/json
 
 > **Achat pour un tiers :** renseignez ici les coordonnées du **passager** (celui qui voyage). Le numéro Mobile Money du payeur se transmet à l'étape paiement via `payerPhone` (§ 6.1).
 
+### 5.2 Réservation groupée (famille / groupe)
+
+Pour acheter plusieurs places en une seule commande :
+
+```http
+POST /api/public/agency/booking-groups
+Content-Type: application/json
+
+{
+  "offerId": "AO…",
+  "travelDate": "2026-09-15",
+  "groupName": "Famille Kabongo",
+  "contactPhone": "+243812345678",
+  "passengers": [
+    {
+      "seatNumber": "01A",
+      "passengerName": "Jean Kabongo",
+      "passengerId": "ID-100",
+      "passengerPhone": "+243812345678"
+    },
+    {
+      "seatNumber": "01B",
+      "passengerName": "Marie Kabongo",
+      "passengerId": "ID-101",
+      "passengerPhone": "+243899999999"
+    }
+  ]
+}
+```
+
+| Champ | Requis | Contraintes |
+|-------|--------|-------------|
+| `groupName` | oui | max 120 — nom du groupe ou de la famille |
+| `contactPhone` | non | max 20 — contact organisateur / payeur |
+| `passengers` | oui | **2 à 20** entrées — **seul `seatNumber` est requis** |
+| `passengers[].seatNumber` | oui | Sièges distincts |
+| `passengers[].passengerName` | non | Optionnel — affiché sur le billet groupe si renseigné |
+| `passengers[].passengerId` | non | Optionnel (défaut `SEAT-XX`) |
+| `passengers[].passengerPhone` | non | Optionnel |
+| `contactPhone` | recommandé | Reçoit **un seul** billet groupe (SMS + WhatsApp + PDF) |
+
+Réponse **201** : `publicToken`, `groupId`, `groupName`, `passengers[]`, `quote.total` = somme de toutes les places. Après paiement : **un seul billet** (`ticketReference`, `pdfUrl`).
+
+**Endpoints groupés** (même logique que billet solo, préfixe `/booking-groups/`) :
+
+| Action | Route |
+|--------|-------|
+| Lire | `GET …/booking-groups/{publicToken}` |
+| Annuler | `POST …/booking-groups/{publicToken}/cancel` |
+| Payer | `POST …/booking-groups/{publicToken}/pay` (+ `payerPhone` optionnel) |
+| Poll paiement | `POST …/booking-groups/{publicToken}/pay/check-status` |
+| Billet groupe émis | `GET …/booking-groups/{publicToken}/ticket` |
+| PDF billet groupe | `GET …/booking-groups/{publicToken}/ticket/pdf` |
+
+**UX recommandée :** étape 1 nom du groupe → étape 2 sélection multi-sièges → étape 3 formulaire passager par siège → étape 4 paiement unique (montant total).
+
 Réponse **201** (test `testCreateOnlineBookingReturnsTokenAndQuote`) :
 
 ```json
@@ -309,7 +365,7 @@ Réponse **201** (test `testCreateOnlineBookingReturnsTokenAndQuote`) :
 | Offre hors ligne | 404 | `Offer "…" not found or not available online.` |
 | Trop de requêtes | 429 | `Too many requests. Please retry later.` + header `Retry-After` |
 
-### 5.2 Lire une réservation
+### 5.3 Lire une réservation
 
 ```http
 GET /api/public/agency/bookings/{publicToken}
@@ -321,7 +377,7 @@ Même shape que la création. Si le hold est expiré, le serveur peut auto-annul
 |--------|------|---------|
 | Token inconnu | 404 | `Booking not found.` |
 
-### 5.3 Annuler (non payée)
+### 5.4 Annuler (non payée)
 
 ```http
 POST /api/public/agency/bookings/{publicToken}/cancel

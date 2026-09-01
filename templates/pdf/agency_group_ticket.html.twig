@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { margin: 0; }
+        * { box-sizing: border-box; }
+        body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #0f172a; }
+        .container { width: 450px; min-height: 680px; background-color: #0f172a; position: relative; color: #ffffff; }
+        .top-border { width: 100%; height: 5px; overflow: hidden; }
+        .border-item { float: left; height: 5px; width: 33.33%; }
+        .content { padding: 28px 30px 24px; }
+        .company-name { font-size: 22px; font-weight: bold; text-transform: uppercase; }
+        .ticket-type { margin-top: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.55); }
+        .route-card { background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; }
+        .route-label { font-size: 9px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+        .route-city { font-size: 16px; font-weight: bold; }
+        .route-arrow { text-align: center; color: #fbbf24; font-size: 18px; font-weight: bold; }
+        .qr-section { text-align: center; margin-bottom: 14px; }
+        .qr-box { background-color: #ffffff; padding: 16px; border-radius: 18px; display: inline-block; }
+        .qr-image { width: 160px; height: 160px; }
+        .ref-badge { margin-top: 12px; background-color: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.35); padding: 8px 18px; border-radius: 999px; color: #fbbf24; font-size: 16px; font-weight: bold; display: inline-block; }
+        .label { font-size: 9px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+        .value { font-size: 15px; font-weight: bold; }
+        .value-accent { color: #fbbf24; }
+        .seats-list { font-size: 14px; font-weight: bold; line-height: 1.5; color: #fbbf24; }
+        .manifest-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .manifest-table td { padding: 4px 0; font-size: 11px; vertical-align: top; }
+        .manifest-seat { color: #fbbf24; font-weight: bold; width: 36px; }
+        .footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12); }
+        .amount-value { font-size: 18px; font-weight: bold; }
+        .issued-at { font-size: 10px; color: rgba(255,255,255,0.45); margin-top: 3px; }
+        .status-badge { float: right; border: 1px solid #34d399; padding: 6px 12px; border-radius: 999px; color: #34d399; font-size: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="top-border">
+        <div class="border-item" style="background-color: #1d4ed8;"></div>
+        <div class="border-item" style="background-color: #fbbf24;"></div>
+        <div class="border-item" style="background-color: #ef4444;"></div>
+    </div>
+    <div class="content">
+        <div class="company-name">{{ companyName }}</div>
+        <div class="ticket-type">Billet groupe · {{ passengerCount }} place(s)</div>
+
+        <div class="route-card">
+            <div class="route-label">Itinéraire</div>
+            <table style="width:100%; border-collapse:collapse;">
+                <tr>
+                    <td style="width:42%;"><div class="route-city">{{ originLabel }}</div></td>
+                    <td class="route-arrow">→</td>
+                    <td style="width:42%; text-align:right;"><div class="route-city">{{ destinationLabel }}</div></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="qr-section">
+            <div class="qr-box"><img src="{{ qrCode }}" class="qr-image" alt="QR"></div>
+            <div><span class="ref-badge">{{ ticket.reference|upper }}</span></div>
+        </div>
+
+        <div class="label">Groupe / Famille</div>
+        <div class="value">{{ ticket.passengerName }}</div>
+
+        <div style="margin-top:14px;">
+            <div class="label">Sièges réservés</div>
+            <div class="seats-list">{{ groupSeats|join(', ') }}</div>
+        </div>
+
+        {% if groupManifest %}
+        <div style="margin-top:14px;">
+            <div class="label">Détail des places</div>
+            <table class="manifest-table">
+                {% for line in groupManifest %}
+                <tr>
+                    <td class="manifest-seat">{{ line.seat }}</td>
+                    <td>{{ line.passengerName|default('—') }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+
+        <div style="margin-top:14px;">
+            <div class="label">Date du voyage</div>
+            <div class="value">{{ ticket.travelDate|date('d/m/Y') }} · Départ {{ offer.departureTime|default('—') }}</div>
+        </div>
+
+        <div class="footer">
+            <div class="status-badge">● Émis</div>
+            <div class="label">Montant total</div>
+            <div class="amount-value">{{ total|number_format(0, '.', ' ') }} {{ ticket.currency }}</div>
+            <div class="issued-at">Émis le {{ issuedAt|date('d/m/Y à H:i') }}</div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

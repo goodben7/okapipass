@@ -4,6 +4,7 @@ namespace App\Domain\Agency;
 
 use App\Contract\AgencySmsSenderInterface;
 use App\Entity\AgencyBooking;
+use App\Entity\AgencyBookingGroup;
 use App\Entity\AgencyOffer;
 use App\Entity\AgencyTicket;
 use App\Exception\UnprocessableEntityException;
@@ -89,6 +90,113 @@ final class AgencyTicketIssuanceService
         if ($sendSms) {
             $this->smsSender->send(
                 (string) $ticket->getPassengerPhone(),
+                $this->notificationTexts->ticketSms($ticket),
+            );
+        }
+
+        return $ticket;
+    }
+
+    public function issueFromGroup(AgencyBookingGroup $group, bool $sendSms = true): AgencyTicket
+    {
+        if ($group->isCancelled()) {
+            throw new UnprocessableEntityException('Cannot issue ticket for a cancelled booking group.');
+        }
+
+        if ($group->getTicket() instanceof AgencyTicket) {
+            return $group->getTicket();
+        }
+
+        $offer = $group->getOffer();
+        if (!$offer instanceof AgencyOffer) {
+            throw new UnprocessableEntityException('Booking group has no offer.');
+        }
+
+        $this->assertOfferSellable($offer);
+
+        $bookings = $group->getBookings()->toArray();
+        if ([] === $bookings) {
+            throw new UnprocessableEntityException('Booking group has no seat reservations.');
+        }
+
+        usort($bookings, static fn (AgencyBooking $a, AgencyBooking $b): int => strcmp((string) $a->getSeatNumber(), (string) $b->getSeatNumber()));
+
+        $this->em->beginTransaction();
+        try {
+            $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
+
+            $seats = [];
+            $manifest = [];
+            $totalTicketPrice = 0;
+            $totalPassPrice = 0;
+            $hasExistingPass = false;
+
+            foreach ($bookings as $booking) {
+                $this->occupancy->assertSeatSelectable(
+                    $offer,
+                    $group->getTravelDate(),
+                    $booking->getSeatNumber(),
+                    $booking->getId(),
+                );
+                $seats[] = (string) $booking->getSeatNumber();
+                $quote = $this->pricing->quote($booking->getOkapiPassRef());
+                $totalTicketPrice += (int) $offer->getTicketPrice();
+                $totalPassPrice += (int) $quote['passPrice'];
+                $hasExistingPass = $hasExistingPass || (bool) $quote['hasExistingPass'];
+                $manifest[] = [
+                    'seat' => (string) $booking->getSeatNumber(),
+                    'passengerName' => $booking->getPassengerName(),
+                    'passengerId' => $booking->getPassengerId(),
+                    'passengerPhone' => $booking->getPassengerPhone(),
+                ];
+            }
+
+            $reference = $this->references->next($group->getAgency());
+            $seatLabel = implode(', ', $seats);
+
+            $ticket = new AgencyTicket();
+            $ticket->setAgency($group->getAgency());
+            $ticket->setOffer($offer);
+            $ticket->setReference($reference);
+            $ticket->setPassengerName((string) $group->getGroupName());
+            $ticket->setPassengerId((string) $group->getId());
+            $ticket->setPassengerPhone((string) ($group->getContactPhone() ?? ''));
+            $ticket->setSeatNumber(sprintf('%dP', \count($seats)));
+            $ticket->setTravelDate($group->getTravelDate());
+            $ticket->setTicketPrice($totalTicketPrice);
+            $ticket->setPassPrice($totalPassPrice);
+            $ticket->setCurrency($offer->getCurrency());
+            $ticket->setHasExistingPass($hasExistingPass);
+            $ticket->setStatus(AgencyTicket::STATUS_ISSUED);
+            $ticket->setIsGroupTicket(true);
+            $ticket->setGroupSeats($seatLabel);
+            $ticket->setNotes(json_encode(['groupManifest' => $manifest], \JSON_THROW_ON_ERROR));
+            $ticket->setBookingGroup($group);
+
+            foreach ($bookings as $booking) {
+                $booking->setStatus(AgencyBooking::STATUS_CONFIRMED);
+                $booking->setPaymentStatus(AgencyBooking::PAYMENT_STATUS_PAID);
+            }
+
+            $group->setStatus(AgencyBookingGroup::STATUS_CONFIRMED);
+            $group->setPaymentStatus(AgencyBookingGroup::PAYMENT_STATUS_PAID);
+            $group->setTicket($ticket);
+            $group->syncChildBookingStates();
+
+            $ticket->setQrPayload($this->qrPayloadBuilder->build($ticket));
+
+            $this->em->persist($ticket);
+            $this->em->flush();
+            $this->em->commit();
+        } catch (\Throwable $e) {
+            $this->em->rollback();
+            throw $e;
+        }
+
+        $notifyPhone = trim((string) ($group->getContactPhone() ?? ''));
+        if ($sendSms && '' !== $notifyPhone) {
+            $this->smsSender->send(
+                $notifyPhone,
                 $this->notificationTexts->ticketSms($ticket),
             );
         }

@@ -111,6 +111,11 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     private ?AgencyBooking $booking = null;
 
     #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AP_BOOKING_GROUP', nullable: true, referencedColumnName: 'BG_ID')]
+    #[Groups(['agency_payment:get'])]
+    private ?AgencyBookingGroup $bookingGroup = null;
+
+    #[ORM\ManyToOne]
     #[ORM\JoinColumn(name: 'AP_RENTAL_CONTRACT', nullable: true, referencedColumnName: 'RC_ID')]
     #[Groups(['agency_payment:get'])]
     private ?AgencyRentalContract $rentalContract = null;
@@ -239,6 +244,18 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public function setBooking(?AgencyBooking $booking): static
     {
         $this->booking = $booking;
+
+        return $this;
+    }
+
+    public function getBookingGroup(): ?AgencyBookingGroup
+    {
+        return $this->bookingGroup;
+    }
+
+    public function setBookingGroup(?AgencyBookingGroup $bookingGroup): static
+    {
+        $this->bookingGroup = $bookingGroup;
 
         return $this;
     }

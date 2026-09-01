@@ -23,23 +23,27 @@ final class PublicAgencyPaymentNotifier
         if ('' === $phone) {
             return;
         }
-
-        $offer = $ticket->getOffer();
         $total = $ticket->getTicketPrice() + $ticket->getPassPrice();
         $ref = (string) ($ticket->getReference() ?? $ticket->getId());
-        $token = (string) ($ticket->getBooking()?->getPublicToken() ?? '');
+        $token = (string) ($ticket->getBooking()?->getPublicToken() ?? $ticket->getBookingGroup()?->getPublicToken() ?? '');
+
+        $seatLine = $ticket->isGroupTicket()
+            ? 'Sièges: '.implode(', ', $ticket->getGroupSeatList())
+            : sprintf('Siège %s', $ticket->getSeatNumber());
 
         $lines = [
             'Paiement confirmé - OkapiPass Agence',
-            'Billet: ' . $ref,
-            'Passager: ' . (string) $ticket->getPassengerName(),
+            ($ticket->isGroupTicket() ? 'Billet groupe: ' : 'Billet: ').$ref,
+            'Groupe: '.($ticket->isGroupTicket() ? $ticket->getPassengerName() : $ticket->getPassengerName()),
             sprintf('Trajet: %s → %s', $offer?->getOrigin() ?? '?', $offer?->getDestination() ?? '?'),
-            sprintf('Date: %s — Siège %s', $ticket->getTravelDate()?->format('d/m/Y') ?? '?', $ticket->getSeatNumber()),
+            sprintf('Date: %s — %s', $ticket->getTravelDate()?->format('d/m/Y') ?? '?', $seatLine),
             sprintf('Montant: %d %s', $total, $ticket->getCurrency()),
         ];
 
         $pdfPath = '' !== $token
-            ? '/api/public/agency/bookings/' . $token . '/ticket/pdf'
+            ? ($ticket->isGroupTicket()
+                ? '/api/public/agency/booking-groups/'.$token.'/ticket/pdf'
+                : '/api/public/agency/bookings/'.$token.'/ticket/pdf')
             : '';
 
         $notification = new Notification();

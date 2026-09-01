@@ -193,6 +193,11 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_booking:get'])]
     private ?AgencyTicket $ticket = null;
 
+    #[ORM\ManyToOne(inversedBy: 'bookings')]
+    #[ORM\JoinColumn(name: 'AB_GROUP_ID', nullable: true, referencedColumnName: 'BG_ID')]
+    #[Groups(['agency_booking:get'])]
+    private ?AgencyBookingGroup $bookingGroup = null;
+
     public static function getStatusesAsList(): array
     {
         return [
@@ -406,6 +411,18 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     public function setTicket(?AgencyTicket $ticket): static
     {
         $this->ticket = $ticket;
+
+        return $this;
+    }
+
+    public function getBookingGroup(): ?AgencyBookingGroup
+    {
+        return $this->bookingGroup;
+    }
+
+    public function setBookingGroup(?AgencyBookingGroup $bookingGroup): static
+    {
+        $this->bookingGroup = $bookingGroup;
 
         return $this;
     }

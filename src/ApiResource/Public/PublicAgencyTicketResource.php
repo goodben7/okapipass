@@ -8,6 +8,7 @@ final class PublicAgencyTicketResource
 {
     /**
      * @param array{id: string, label: string, origin: string, destination: string, departureTime: string} $offer
+     * @param list<string> $groupSeats
      */
     public function __construct(
         #[ApiProperty(identifier: true)]
@@ -26,6 +27,10 @@ final class PublicAgencyTicketResource
         public ?string $qrPayload,
         public array $offer,
         public ?string $pdfUrl = null,
+        public bool $isGroupTicket = false,
+        public ?string $groupName = null,
+        public array $groupSeats = [],
+        public int $passengerCount = 1,
     ) {
     }
 }
