@@ -685,6 +685,9 @@ Sans Pass → FPT facturé sur chaque ligne.
 | GET | `/api/passes/validate?ref=OP-…` | Agency guichet |
 | POST | `/api/ont/fpt-declarations` | Agency soumet lot |
 | PATCH | `/api/ont/fpt-declarations/{id}/pay` | ONT / paiement |
+| GET | `/api/ont/dashboard?periodMonth=YYYY-MM` | ONT dashboard national (polling) |
+
+Dashboard ONT (`ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT`) : KPIs agences, billets, Pass, FPT (dû/payé), top agences, alertes, `pollSuggestedSeconds`. Voir `ont-frontend-integration-guide.md`.
 
 **Validate Pass — 200 :**
 

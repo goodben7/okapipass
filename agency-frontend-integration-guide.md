@@ -960,6 +960,7 @@ Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet 
 | `POST /api/agencies` | Admin (`ROLE_AGENCY_CREATE`) — crée agence + user |
 | `PATCH /api/agencies/{id}` | Admin |
 | `POST /api/ont/fpt-declarations/{id}/pay` | ONT_ADMIN — marquer FPT payé |
+| `GET /api/ont/dashboard` | ONT — KPIs nationaux (voir `ont-frontend-integration-guide.md`) |
 
 À la création admin, `licenseNumber` / multi-devises ne sont pas tous dans le DTO create : défauts serveur (`CDF`). Le seed démo remplit licence + `["CDF","USD"]`.
 
@@ -971,6 +972,7 @@ Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet 
 |-----------|--------|
 | Spec métier complète | `agency-backend-integration-spec.md` |
 | **Guide B2C voyageur** | **`public-agency-b2c-integration-guide.md`** (solo, tiers, groupes) |
+| **Guide Dashboard ONT** | **`ont-frontend-integration-guide.md`** |
 | **Module fleet (ce guide)** | **§4.2.1 → §4.2.4** |
 | Collection Bruno | `bruno/agency/` (+ README — fleet à compléter côté Bruno) |
 | CSV exemple | `bruno/agency/declarations/fixtures/sample.csv` |
