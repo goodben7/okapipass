@@ -684,8 +684,12 @@ Sans Pass → FPT facturé sur chaque ligne.
 | GET | `/api/pass-types` ou `/api/ont/pass-tariffs?code=ROUTIER` | Agency (lecture) |
 | GET | `/api/passes/validate?ref=OP-…` | Agency guichet |
 | POST | `/api/ont/fpt-declarations` | Agency soumet lot |
-| PATCH | `/api/ont/fpt-declarations/{id}/pay` | ONT / paiement |
+| POST | `/api/ont/fpt-declarations/{id}/validate` | ONT valide |
+| POST | `/api/ont/fpt-declarations/{id}/reject` | ONT rejette (`{ "reason": "…" }` optionnel) |
+| POST | `/api/ont/fpt-declarations/{id}/pay` | ONT marque payé (après validation) |
 | GET | `/api/ont/dashboard?periodMonth=YYYY-MM` | ONT dashboard national (polling) |
+
+Workflow FPT : `draft` → `submitted` → `validated` → `paid` ; rejet possible `submitted` → `rejected` (agence peut resoumettre).
 
 Dashboard ONT (`ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT`) : KPIs agences, billets, Pass, FPT (dû/payé), top agences, alertes, `pollSuggestedSeconds`. Voir `ont-frontend-integration-guide.md`.
 

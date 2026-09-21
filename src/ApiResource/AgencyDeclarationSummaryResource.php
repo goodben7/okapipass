@@ -26,6 +26,7 @@ class AgencyDeclarationSummaryResource
         public string $currency,
         public int $draft,
         public int $submitted,
+        public int $validated,
         public int $paid,
         /** @var array<string, int> */
         public array $byCurrency = [],

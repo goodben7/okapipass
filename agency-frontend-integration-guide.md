@@ -800,9 +800,10 @@ Colonnes (`;` ou `,`) :
 | `okapiPassRef` | passRef, pass (optionnel) |
 | `hasExistingPass` | optionnel |
 
-Sans Pass → FPT = tarif ROUTIER par ligne (ex. 3000 CDF).
+Statuts déclaration : `draft` → `submitted` → `validated` → `paid`  
+Rejet possible : `submitted` → `rejected` (l’agence peut resoumettre).
 
-Statuts déclaration : `draft` → `submitted` → `paid` (pay côté ONT).
+Sans Pass → FPT = tarif ROUTIER par ligne (ex. 3000 CDF).
 
 ### 4.10 Notifications (preview)
 
@@ -959,7 +960,9 @@ Les étapes 12–17 peuvent suivre les ventes desk (1–11) une fois le guichet 
 |-------|-----|
 | `POST /api/agencies` | Admin (`ROLE_AGENCY_CREATE`) — crée agence + user |
 | `PATCH /api/agencies/{id}` | Admin |
-| `POST /api/ont/fpt-declarations/{id}/pay` | ONT_ADMIN — marquer FPT payé |
+| `POST /api/ont/fpt-declarations/{id}/validate` | ONT_ADMIN — valider une déclaration soumise |
+| `POST /api/ont/fpt-declarations/{id}/reject` | ONT_ADMIN — rejeter (body optionnel `{ "reason": "…" }`) |
+| `POST /api/ont/fpt-declarations/{id}/pay` | ONT_ADMIN — marquer FPT payé (**après** validation) |
 | `GET /api/ont/dashboard` | ONT — KPIs nationaux (voir `ont-frontend-integration-guide.md`) |
 
 À la création admin, `licenseNumber` / multi-devises ne sont pas tous dans le DTO create : défauts serveur (`CDF`). Le seed démo remplit licence + `["CDF","USD"]`.

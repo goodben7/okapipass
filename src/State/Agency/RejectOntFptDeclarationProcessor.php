@@ -4,14 +4,14 @@ namespace App\State\Agency;
 
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
+use App\Dto\Agency\RejectOntFptDeclarationDto;
 use App\Entity\PassDeclaration;
 use App\Exception\UnavailableDataException;
-use App\Exception\UnprocessableEntityException;
 use App\Manager\PassDeclarationManager;
 use App\Repository\PassDeclarationRepository;
 
-/** @implements ProcessorInterface<null, PassDeclaration> */
-final class PayOntFptDeclarationProcessor implements ProcessorInterface
+/** @implements ProcessorInterface<RejectOntFptDeclarationDto|null, PassDeclaration> */
+final class RejectOntFptDeclarationProcessor implements ProcessorInterface
 {
     public function __construct(
         private PassDeclarationRepository $declarations,
@@ -21,23 +21,20 @@ final class PayOntFptDeclarationProcessor implements ProcessorInterface
 
     public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): PassDeclaration
     {
-        $declaration = $data instanceof PassDeclaration
-            ? $data
+        $previous = $context['previous_data'] ?? null;
+        $declaration = $previous instanceof PassDeclaration
+            ? $previous
             : $this->declarations->find($uriVariables['id'] ?? null);
         if (null === $declaration) {
             throw new UnavailableDataException('Declaration not found.');
         }
 
-        if (PassDeclaration::STATUS_PAID === $declaration->getStatus()) {
+        if (PassDeclaration::STATUS_REJECTED === $declaration->getStatus()) {
             return $declaration;
         }
 
-        if (PassDeclaration::STATUS_VALIDATED !== $declaration->getStatus()) {
-            throw new UnprocessableEntityException(
-                'Declaration must be validated by ONT before it can be marked as paid.'
-            );
-        }
+        $reason = $data instanceof RejectOntFptDeclarationDto ? $data->reason : null;
 
-        return $this->manager->updateStatus($declaration, PassDeclaration::STATUS_PAID, skipOwnershipCheck: true);
+        return $this->manager->rejectForOnt($declaration, $reason);
     }
 }

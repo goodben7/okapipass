@@ -33,13 +33,17 @@ final class SubmitOntFptDeclarationProcessor implements ProcessorInterface
         }
 
         if (PassDeclaration::STATUS_SUBMITTED === $declaration->getStatus()
+            || PassDeclaration::STATUS_VALIDATED === $declaration->getStatus()
             || PassDeclaration::STATUS_PAID === $declaration->getStatus()
         ) {
             return $declaration; // idempotent
         }
 
-        if (PassDeclaration::STATUS_DRAFT !== $declaration->getStatus()) {
-            throw new UnprocessableEntityException('Only draft declarations can be submitted to ONT.');
+        if (!\in_array($declaration->getStatus(), [
+            PassDeclaration::STATUS_DRAFT,
+            PassDeclaration::STATUS_REJECTED,
+        ], true)) {
+            throw new UnprocessableEntityException('Only draft or rejected declarations can be submitted to ONT.');
         }
 
         return $this->manager->updateStatus($declaration, PassDeclaration::STATUS_SUBMITTED);

@@ -6,12 +6,11 @@ use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\PassDeclaration;
 use App\Exception\UnavailableDataException;
-use App\Exception\UnprocessableEntityException;
 use App\Manager\PassDeclarationManager;
 use App\Repository\PassDeclarationRepository;
 
 /** @implements ProcessorInterface<null, PassDeclaration> */
-final class PayOntFptDeclarationProcessor implements ProcessorInterface
+final class ValidateOntFptDeclarationProcessor implements ProcessorInterface
 {
     public function __construct(
         private PassDeclarationRepository $declarations,
@@ -28,16 +27,10 @@ final class PayOntFptDeclarationProcessor implements ProcessorInterface
             throw new UnavailableDataException('Declaration not found.');
         }
 
-        if (PassDeclaration::STATUS_PAID === $declaration->getStatus()) {
+        if (PassDeclaration::STATUS_VALIDATED === $declaration->getStatus()) {
             return $declaration;
         }
 
-        if (PassDeclaration::STATUS_VALIDATED !== $declaration->getStatus()) {
-            throw new UnprocessableEntityException(
-                'Declaration must be validated by ONT before it can be marked as paid.'
-            );
-        }
-
-        return $this->manager->updateStatus($declaration, PassDeclaration::STATUS_PAID, skipOwnershipCheck: true);
+        return $this->manager->validateForOnt($declaration);
     }
 }

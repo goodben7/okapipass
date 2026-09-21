@@ -133,8 +133,9 @@ final class OntDashboardService
                 'passesIssuedMonth' => $passesIssuedMonth,
                 'fptDraft' => $fptTotals['draft'],
                 'fptSubmitted' => $fptTotals['submitted'],
+                'fptValidated' => $fptTotals['validated'],
                 'fptPaid' => $fptTotals['paid'],
-                'fptDue' => $fptTotals['draft'] + $fptTotals['submitted'],
+                'fptDue' => $fptTotals['draft'] + $fptTotals['submitted'] + $fptTotals['validated'],
                 'currency' => Agency::DEFAULT_CURRENCY,
                 'paymentsPending' => $paymentsPending,
                 'paymentsPaidToday' => $paymentsPaidToday,
@@ -183,14 +184,34 @@ final class OntDashboardService
         foreach ($this->declarations->findOpenMonthlyBefore($currentPeriod, 20) as $decl) {
             $period = (string) ($decl->getPeriodMonth() ?: 'période inconnue');
             $agencyName = (string) ($decl->getAgency()?->getName() ?? 'Agence');
-            $isDraft = PassDeclaration::STATUS_DRAFT === $decl->getStatus();
+
+            [$type, $severity, $message] = match ($decl->getStatus()) {
+                PassDeclaration::STATUS_DRAFT => [
+                    'FPT_MONTHLY_DRAFT',
+                    'warning',
+                    sprintf('%s : déclaration mensuelle %s encore en brouillon.', $agencyName, $period),
+                ],
+                PassDeclaration::STATUS_SUBMITTED => [
+                    'FPT_AWAITING_VALIDATION',
+                    'warning',
+                    sprintf('%s : FPT %s en attente de validation ONT.', $agencyName, $period),
+                ],
+                PassDeclaration::STATUS_VALIDATED => [
+                    'FPT_AWAITING_PAYMENT',
+                    'critical',
+                    sprintf('%s : FPT %s validé, paiement en attente.', $agencyName, $period),
+                ],
+                default => [
+                    'FPT_OPEN',
+                    'warning',
+                    sprintf('%s : FPT %s non soldé.', $agencyName, $period),
+                ],
+            };
 
             $alerts[] = [
-                'type' => $isDraft ? 'FPT_MONTHLY_DRAFT' : 'FPT_UNPAID',
-                'severity' => $isDraft ? 'warning' : 'critical',
-                'message' => $isDraft
-                    ? sprintf('%s : déclaration mensuelle %s encore en brouillon.', $agencyName, $period)
-                    : sprintf('%s : FPT %s soumis non payé.', $agencyName, $period),
+                'type' => $type,
+                'severity' => $severity,
+                'message' => $message,
                 'agencyId' => $decl->getAgency()?->getId(),
                 'periodMonth' => $decl->getPeriodMonth(),
                 'declarationId' => $decl->getId(),

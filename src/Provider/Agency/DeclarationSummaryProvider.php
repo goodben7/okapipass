@@ -24,6 +24,7 @@ final class DeclarationSummaryProvider implements ProviderInterface
             currency: $summary['currency'],
             draft: $summary['draft'],
             submitted: $summary['submitted'],
+            validated: $summary['validated'] ?? 0,
             paid: $summary['paid'],
             byCurrency: $summary['byCurrency'] ?? [],
         );

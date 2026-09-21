@@ -95,6 +95,8 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
 
     public const string STATUS_DRAFT = 'draft';
     public const string STATUS_SUBMITTED = 'submitted';
+    public const string STATUS_VALIDATED = 'validated';
+    public const string STATUS_REJECTED = 'rejected';
     public const string STATUS_PAID = 'paid';
 
     public const string SOURCE_MANUAL = 'manual';
@@ -162,6 +164,18 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
     #[Groups(['pass_declaration:get'])]
     private ?\DateTimeImmutable $submittedAt = null;
 
+    #[ORM\Column(name: 'PD_VALIDATED_AT', nullable: true)]
+    #[Groups(['pass_declaration:get'])]
+    private ?\DateTimeImmutable $validatedAt = null;
+
+    #[ORM\Column(name: 'PD_REJECTED_AT', nullable: true)]
+    #[Groups(['pass_declaration:get'])]
+    private ?\DateTimeImmutable $rejectedAt = null;
+
+    #[ORM\Column(name: 'PD_REJECTION_REASON', length: 500, nullable: true)]
+    #[Groups(['pass_declaration:get'])]
+    private ?string $rejectionReason = null;
+
     #[ORM\Column(name: 'PD_PAID_AT', nullable: true)]
     #[Groups(['pass_declaration:get'])]
     private ?\DateTimeImmutable $paidAt = null;
@@ -174,7 +188,13 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
 
     public static function getStatusesAsList(): array
     {
-        return [self::STATUS_DRAFT, self::STATUS_SUBMITTED, self::STATUS_PAID];
+        return [
+            self::STATUS_DRAFT,
+            self::STATUS_SUBMITTED,
+            self::STATUS_VALIDATED,
+            self::STATUS_REJECTED,
+            self::STATUS_PAID,
+        ];
     }
 
     public static function getSourcesAsList(): array
@@ -312,6 +332,42 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
     public function setSubmittedAt(?\DateTimeImmutable $submittedAt): static
     {
         $this->submittedAt = $submittedAt;
+
+        return $this;
+    }
+
+    public function getValidatedAt(): ?\DateTimeImmutable
+    {
+        return $this->validatedAt;
+    }
+
+    public function setValidatedAt(?\DateTimeImmutable $validatedAt): static
+    {
+        $this->validatedAt = $validatedAt;
+
+        return $this;
+    }
+
+    public function getRejectedAt(): ?\DateTimeImmutable
+    {
+        return $this->rejectedAt;
+    }
+
+    public function setRejectedAt(?\DateTimeImmutable $rejectedAt): static
+    {
+        $this->rejectedAt = $rejectedAt;
+
+        return $this;
+    }
+
+    public function getRejectionReason(): ?string
+    {
+        return $this->rejectionReason;
+    }
+
+    public function setRejectionReason(?string $rejectionReason): static
+    {
+        $this->rejectionReason = $rejectionReason;
 
         return $this;
     }

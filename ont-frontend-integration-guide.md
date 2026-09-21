@@ -128,14 +128,20 @@ GET /api/ont/dashboard?periodMonth=2026-08
 3. Afficher `generatedAt` (« Mis à jour à … »)
 4. Pause le polling si l’onglet est caché (`document.visibilityState`)
 
-Marquer FPT payé (existant) :
+### Actions FPT ONT (workflow)
 
-```http
-PATCH /api/ont/fpt-declarations/{id}/pay
-Authorization: Bearer {jwt}
+```
+draft → submitted → validated → paid
+                 ↘ rejected  → (agence resoumet) → submitted
 ```
 
-(`ROLE_ONT_ADMIN` uniquement)
+| Action | Route | Qui |
+|--------|-------|-----|
+| Valider | `POST /api/ont/fpt-declarations/{id}/validate` | ONT_ADMIN |
+| Rejeter | `POST /api/ont/fpt-declarations/{id}/reject` + `{ "reason": "…" }` | ONT_ADMIN |
+| Marquer payé | `POST /api/ont/fpt-declarations/{id}/pay` | ONT_ADMIN (après `validated`) |
+
+Pay sans validation → **422**.
 
 ---
 
@@ -146,6 +152,8 @@ Authorization: Bearer {jwt}
 - [ ] Sélecteur mois `periodMonth`
 - [ ] Polling 15 s + indicateur `generatedAt`
 - [ ] Liste alertes + deep-link déclaration / agence
+- [ ] File d’attente FPT : valider / rejeter / payer
+- [ ] Afficher `rejectionReason` côté agence si rejeté
 - [ ] Ne pas appeler `/api/agency/*` depuis le portail ONT
 
-Tests backend : `tests/Functional/Ont/OntDashboardTest.php`
+Tests backend : `tests/Functional/Ont/OntDashboardTest.php`, `OntFptValidationWorkflowTest.php`

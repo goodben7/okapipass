@@ -130,7 +130,12 @@ class PassDeclarationManager
 
         $allowed = match ($current) {
             PassDeclaration::STATUS_DRAFT => [PassDeclaration::STATUS_SUBMITTED],
-            PassDeclaration::STATUS_SUBMITTED => [PassDeclaration::STATUS_PAID],
+            PassDeclaration::STATUS_REJECTED => [PassDeclaration::STATUS_DRAFT, PassDeclaration::STATUS_SUBMITTED],
+            PassDeclaration::STATUS_SUBMITTED => [
+                PassDeclaration::STATUS_VALIDATED,
+                PassDeclaration::STATUS_REJECTED,
+            ],
+            PassDeclaration::STATUS_VALIDATED => [PassDeclaration::STATUS_PAID],
             default => [],
         };
 
@@ -138,12 +143,32 @@ class PassDeclarationManager
             throw new UnprocessableEntityException(sprintf('Cannot transition declaration from %s to %s.', $current, $status));
         }
 
+        $now = new \DateTimeImmutable('now');
         $declaration->setStatus($status);
+
         if (PassDeclaration::STATUS_SUBMITTED === $status) {
-            $declaration->setSubmittedAt(new \DateTimeImmutable('now'));
+            $declaration->setSubmittedAt($now);
+            $declaration->setRejectionReason(null);
+            $declaration->setRejectedAt(null);
+        }
+        if (PassDeclaration::STATUS_VALIDATED === $status) {
+            $declaration->setValidatedAt($now);
+            $declaration->setRejectionReason(null);
+            $declaration->setRejectedAt(null);
+        }
+        if (PassDeclaration::STATUS_REJECTED === $status) {
+            $declaration->setRejectedAt($now);
+            $declaration->setValidatedAt(null);
+        }
+        if (PassDeclaration::STATUS_DRAFT === $status) {
+            $declaration->setSubmittedAt(null);
+            $declaration->setValidatedAt(null);
+            $declaration->setRejectedAt(null);
+            $declaration->setRejectionReason(null);
+            $declaration->setPaidAt(null);
         }
         if (PassDeclaration::STATUS_PAID === $status) {
-            $declaration->setPaidAt(new \DateTimeImmutable('now'));
+            $declaration->setPaidAt($now);
         }
 
         $this->em->flush();
@@ -151,8 +176,21 @@ class PassDeclarationManager
         return $declaration;
     }
 
+    public function validateForOnt(PassDeclaration $declaration): PassDeclaration
+    {
+        return $this->updateStatus($declaration, PassDeclaration::STATUS_VALIDATED, skipOwnershipCheck: true);
+    }
+
+    public function rejectForOnt(PassDeclaration $declaration, ?string $reason = null): PassDeclaration
+    {
+        $reason = trim((string) $reason);
+        $declaration->setRejectionReason('' !== $reason ? $reason : null);
+
+        return $this->updateStatus($declaration, PassDeclaration::STATUS_REJECTED, skipOwnershipCheck: true);
+    }
+
     /**
-     * @return array{fptDue: int, currency: string, draft: int, submitted: int, paid: int, byCurrency: array<string, int>}
+     * @return array{fptDue: int, currency: string, draft: int, submitted: int, validated: int, paid: int, byCurrency: array<string, int>}
      */
     public function summary(): array
     {

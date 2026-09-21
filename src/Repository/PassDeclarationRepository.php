@@ -16,7 +16,7 @@ class PassDeclarationRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array{fptDue: int, currency: string, draft: int, submitted: int, paid: int, byCurrency: array<string, int>}
+     * @return array{fptDue: int, currency: string, draft: int, submitted: int, validated: int, paid: int, byCurrency: array<string, int>}
      */
     public function summarizeForAgency(Agency $agency): array
     {
@@ -30,12 +30,14 @@ class PassDeclarationRepository extends ServiceEntityRepository
 
         $draft = 0;
         $submitted = 0;
+        $validated = 0;
         $paid = 0;
         foreach ($rows as $row) {
             $sum = (int) ($row['total'] ?? 0);
             match ($row['status']) {
                 PassDeclaration::STATUS_DRAFT => $draft = $sum,
                 PassDeclaration::STATUS_SUBMITTED => $submitted = $sum,
+                PassDeclaration::STATUS_VALIDATED => $validated = $sum,
                 PassDeclaration::STATUS_PAID => $paid = $sum,
                 default => null,
             };
@@ -46,7 +48,11 @@ class PassDeclarationRepository extends ServiceEntityRepository
             ->andWhere('d.agency = :agency')
             ->andWhere('d.status IN (:due)')
             ->setParameter('agency', $agency)
-            ->setParameter('due', [PassDeclaration::STATUS_DRAFT, PassDeclaration::STATUS_SUBMITTED])
+            ->setParameter('due', [
+                PassDeclaration::STATUS_DRAFT,
+                PassDeclaration::STATUS_SUBMITTED,
+                PassDeclaration::STATUS_VALIDATED,
+            ])
             ->groupBy('d.currency')
             ->getQuery()
             ->getArrayResult();
@@ -58,10 +64,11 @@ class PassDeclarationRepository extends ServiceEntityRepository
         }
 
         return [
-            'fptDue' => $draft + $submitted,
+            'fptDue' => $draft + $submitted + $validated,
             'currency' => $agency->getDefaultCurrency(),
             'draft' => $draft,
             'submitted' => $submitted,
+            'validated' => $validated,
             'paid' => $paid,
             'byCurrency' => $byCurrency,
         ];
@@ -91,7 +98,7 @@ class PassDeclarationRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array{draft: int, submitted: int, paid: int}
+     * @return array{draft: int, submitted: int, validated: int, paid: int}
      */
     public function summarizeNational(): array
     {
@@ -103,12 +110,14 @@ class PassDeclarationRepository extends ServiceEntityRepository
 
         $draft = 0;
         $submitted = 0;
+        $validated = 0;
         $paid = 0;
         foreach ($rows as $row) {
             $sum = (int) ($row['total'] ?? 0);
             match ($row['status']) {
                 PassDeclaration::STATUS_DRAFT => $draft = $sum,
                 PassDeclaration::STATUS_SUBMITTED => $submitted = $sum,
+                PassDeclaration::STATUS_VALIDATED => $validated = $sum,
                 PassDeclaration::STATUS_PAID => $paid = $sum,
                 default => null,
             };
@@ -117,12 +126,13 @@ class PassDeclarationRepository extends ServiceEntityRepository
         return [
             'draft' => $draft,
             'submitted' => $submitted,
+            'validated' => $validated,
             'paid' => $paid,
         ];
     }
 
     /**
-     * @return list<array{periodMonth: string, draft: int, submitted: int, paid: int, total: int}>
+     * @return list<array{periodMonth: string, draft: int, submitted: int, validated: int, paid: int, total: int}>
      */
     public function summarizeByPeriodMonth(int $limit = 6): array
     {
@@ -145,6 +155,7 @@ class PassDeclarationRepository extends ServiceEntityRepository
                     'periodMonth' => $month,
                     'draft' => 0,
                     'submitted' => 0,
+                    'validated' => 0,
                     'paid' => 0,
                     'total' => 0,
                 ];
@@ -153,11 +164,13 @@ class PassDeclarationRepository extends ServiceEntityRepository
             match ($row['status']) {
                 PassDeclaration::STATUS_DRAFT => $byMonth[$month]['draft'] = $sum,
                 PassDeclaration::STATUS_SUBMITTED => $byMonth[$month]['submitted'] = $sum,
+                PassDeclaration::STATUS_VALIDATED => $byMonth[$month]['validated'] = $sum,
                 PassDeclaration::STATUS_PAID => $byMonth[$month]['paid'] = $sum,
                 default => null,
             };
             $byMonth[$month]['total'] = $byMonth[$month]['draft']
                 + $byMonth[$month]['submitted']
+                + $byMonth[$month]['validated']
                 + $byMonth[$month]['paid'];
         }
 
@@ -186,7 +199,11 @@ class PassDeclarationRepository extends ServiceEntityRepository
             ->select('a.id AS agencyId, a.name AS agencyName, d.currency AS currency, SUM(d.fptTotal) AS fptDue')
             ->innerJoin('d.agency', 'a')
             ->andWhere('d.status IN (:due)')
-            ->setParameter('due', [PassDeclaration::STATUS_DRAFT, PassDeclaration::STATUS_SUBMITTED])
+            ->setParameter('due', [
+                PassDeclaration::STATUS_DRAFT,
+                PassDeclaration::STATUS_SUBMITTED,
+                PassDeclaration::STATUS_VALIDATED,
+            ])
             ->groupBy('a.id, a.name, d.currency')
             ->orderBy('fptDue', 'DESC')
             ->setMaxResults($limit)
@@ -221,7 +238,11 @@ class PassDeclarationRepository extends ServiceEntityRepository
             ->andWhere('d.status IN (:open)')
             ->setParameter('monthly', PassDeclaration::SOURCE_MONTHLY)
             ->setParameter('before', $beforePeriod)
-            ->setParameter('open', [PassDeclaration::STATUS_DRAFT, PassDeclaration::STATUS_SUBMITTED])
+            ->setParameter('open', [
+                PassDeclaration::STATUS_DRAFT,
+                PassDeclaration::STATUS_SUBMITTED,
+                PassDeclaration::STATUS_VALIDATED,
+            ])
             ->orderBy('d.periodMonth', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()
