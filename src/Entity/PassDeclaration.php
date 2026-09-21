@@ -14,8 +14,10 @@ use ApiPlatform\Metadata\Post;
 use App\Doctrine\IdGenerator;
 use App\Domain\Agency\AgencyScopedInterface;
 use App\Dto\Agency\CreatePassDeclarationDto;
+use App\Dto\Agency\GenerateMonthlyPassDeclarationDto;
 use App\Dto\Agency\ImportPassDeclarationCsvDto;
 use App\Dto\Agency\UpdatePassDeclarationStatusDto;
+use App\State\Agency\GenerateMonthlyPassDeclarationProcessor;
 use App\Model\RessourceInterface;
 use App\Repository\PassDeclarationRepository;
 use App\State\Agency\AgencyScopedItemProvider;
@@ -30,6 +32,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: PassDeclarationRepository::class)]
 #[ORM\Table(name: '`pass_declaration`')]
+#[ORM\UniqueConstraint(name: 'UNIQ_PASS_DECL_AGENCY_PERIOD', columns: ['PD_AGENCY', 'PD_PERIOD_MONTH'])]
 #[ORM\HasLifecycleCallbacks]
 #[ApiResource(
     shortName: 'PassDeclaration',
@@ -62,6 +65,13 @@ use Symfony\Component\Validator\Constraints as Assert;
             ],
             status: 201,
         ),
+        new Post(
+            uriTemplate: '/agency/declarations/generate-monthly',
+            security: 'is_granted("ROLE_PARTNER")',
+            input: GenerateMonthlyPassDeclarationDto::class,
+            processor: GenerateMonthlyPassDeclarationProcessor::class,
+            status: 201,
+        ),
         new Patch(
             uriTemplate: '/agency/declarations/{id}/status',
             security: 'is_granted("ROLE_PARTNER")',
@@ -76,8 +86,9 @@ use Symfony\Component\Validator\Constraints as Assert;
     'status' => 'exact',
     'source' => 'exact',
     'label' => 'ipartial',
+    'periodMonth' => 'exact',
 ])]
-#[ApiFilter(OrderFilter::class, properties: ['createdAt', 'submittedAt', 'fptTotal'])]
+#[ApiFilter(OrderFilter::class, properties: ['createdAt', 'submittedAt', 'fptTotal', 'periodMonth'])]
 class PassDeclaration implements RessourceInterface, AgencyScopedInterface
 {
     public const string ID_PREFIX = 'PD';
@@ -89,6 +100,7 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
     public const string SOURCE_MANUAL = 'manual';
     public const string SOURCE_CSV = 'csv';
     public const string SOURCE_EMBARKATION = 'embarkation';
+    public const string SOURCE_MONTHLY = 'monthly';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -128,6 +140,11 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
     #[Groups(['pass_declaration:get'])]
     private int $fptTotal = 0;
 
+    /** Calendar month covered by a monthly FPT declaration (YYYY-MM). */
+    #[ORM\Column(name: 'PD_PERIOD_MONTH', length: 7, nullable: true)]
+    #[Groups(['pass_declaration:get'])]
+    private ?string $periodMonth = null;
+
     /** @var Collection<int, DeclarationLine> */
     #[ORM\OneToMany(mappedBy: 'declaration', targetEntity: DeclarationLine::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[Groups(['pass_declaration:get'])]
@@ -162,7 +179,7 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
 
     public static function getSourcesAsList(): array
     {
-        return [self::SOURCE_MANUAL, self::SOURCE_CSV, self::SOURCE_EMBARKATION];
+        return [self::SOURCE_MANUAL, self::SOURCE_CSV, self::SOURCE_EMBARKATION, self::SOURCE_MONTHLY];
     }
 
     public function getId(): ?string
@@ -250,6 +267,18 @@ class PassDeclaration implements RessourceInterface, AgencyScopedInterface
     public function setFptTotal(int $fptTotal): static
     {
         $this->fptTotal = $fptTotal;
+
+        return $this;
+    }
+
+    public function getPeriodMonth(): ?string
+    {
+        return $this->periodMonth;
+    }
+
+    public function setPeriodMonth(?string $periodMonth): static
+    {
+        $this->periodMonth = $periodMonth;
 
         return $this;
     }

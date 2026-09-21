@@ -7,9 +7,11 @@ use App\Domain\Agency\DeclarationCsvLimits;
 use App\Domain\Agency\DeclarationCsvParser;
 use App\Dto\Agency\CreatePassDeclarationDto;
 use App\Dto\Agency\ImportPassDeclarationCsvDto;
+use App\Entity\AgencyTicket;
 use App\Entity\DeclarationLine;
 use App\Entity\PassDeclaration;
 use App\Exception\UnprocessableEntityException;
+use App\Repository\AgencyTicketRepository;
 use App\Repository\PassDeclarationRepository;
 use App\Service\Agency\AgencyContext;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +23,7 @@ class PassDeclarationManager
         private EntityManagerInterface $em,
         private AgencyContext $agencyContext,
         private PassDeclarationRepository $declarations,
+        private AgencyTicketRepository $tickets,
         private AgencyPricingService $pricing,
         private DeclarationCsvParser $csvParser,
     ) {
@@ -62,6 +65,54 @@ class PassDeclarationManager
         foreach ($rows as $row) {
             $declaration->addLine($this->lineFromArray($row));
         }
+        $declaration->recalculateFptTotal();
+
+        $this->em->persist($declaration);
+        $this->em->flush();
+
+        return $declaration;
+    }
+
+    /**
+     * Build a draft monthly FPT declaration from undeclared tickets whose travelDate
+     * falls in the given calendar month (YYYY-MM). Idempotent per agency + month.
+     */
+    public function generateMonthly(string $yearMonth): PassDeclaration
+    {
+        $agency = $this->agencyContext->requireAgency();
+        $period = $this->parseYearMonth($yearMonth);
+
+        $existing = $this->declarations->findOneMonthlyForAgency($agency, $period['yearMonth']);
+        if ($existing instanceof PassDeclaration) {
+            return $existing;
+        }
+
+        $tickets = $this->tickets->findUndeclaredForAgencyPeriod(
+            $agency,
+            $period['from'],
+            $period['to'],
+        );
+
+        if ([] === $tickets) {
+            throw new UnprocessableEntityException(sprintf(
+                'No undeclared tickets found for period %s.',
+                $period['yearMonth'],
+            ));
+        }
+
+        $declaration = new PassDeclaration();
+        $declaration->setAgency($agency);
+        $declaration->setLabel(sprintf('FPT mensuel %s', $period['yearMonth']));
+        $declaration->setSource(PassDeclaration::SOURCE_MONTHLY);
+        $declaration->setStatus(PassDeclaration::STATUS_DRAFT);
+        $declaration->setPeriodMonth($period['yearMonth']);
+        $declaration->setCurrency($agency->getDefaultCurrency());
+
+        foreach ($tickets as $ticket) {
+            $declaration->addLine($this->lineFromTicket($ticket));
+            $ticket->setDeclaration($declaration);
+        }
+
         $declaration->recalculateFptTotal();
 
         $this->em->persist($declaration);
@@ -185,5 +236,54 @@ class PassDeclarationManager
         }
 
         return $line;
+    }
+
+    private function lineFromTicket(AgencyTicket $ticket): DeclarationLine
+    {
+        $offer = $ticket->getOffer();
+        $quote = $this->pricing->quote($ticket->getOkapiPassRef());
+
+        $passPrice = $ticket->getPassPrice() > 0
+            ? $ticket->getPassPrice()
+            : ($ticket->hasExistingPass() ? 0 : (int) $quote['passPrice']);
+
+        $line = new DeclarationLine();
+        $line->setReferenceBillet((string) $ticket->getReference());
+        $line->setDate($ticket->getTravelDate() ?? new \DateTimeImmutable('today'));
+        $line->setPassengerName((string) $ticket->getPassengerName());
+        $line->setPassengerId((string) $ticket->getPassengerId());
+        $line->setOrigin((string) ($offer?->getOrigin() ?? ''));
+        $line->setDestination((string) ($offer?->getDestination() ?? ''));
+        $line->setTicketPrice($ticket->getTicketPrice());
+        $line->setCurrency($ticket->getCurrency());
+        $line->setPassPrice($passPrice);
+        $line->setOkapiPassRef($ticket->getOkapiPassRef());
+        $line->setHasExistingPass($ticket->hasExistingPass());
+
+        return $line;
+    }
+
+    /**
+     * @return array{yearMonth: string, from: \DateTimeImmutable, to: \DateTimeImmutable}
+     */
+    private function parseYearMonth(string $yearMonth): array
+    {
+        $yearMonth = trim($yearMonth);
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $yearMonth)) {
+            throw new UnprocessableEntityException('yearMonth must be YYYY-MM.');
+        }
+
+        $from = \DateTimeImmutable::createFromFormat('!Y-m-d', $yearMonth.'-01');
+        if (false === $from) {
+            throw new UnprocessableEntityException('Invalid yearMonth.');
+        }
+
+        $to = $from->modify('last day of this month');
+
+        return [
+            'yearMonth' => $yearMonth,
+            'from' => $from,
+            'to' => $to,
+        ];
     }
 }

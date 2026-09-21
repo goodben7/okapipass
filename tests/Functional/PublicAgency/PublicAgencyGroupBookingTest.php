@@ -96,6 +96,57 @@ final class PublicAgencyGroupBookingTest extends AgencyApiTestCase
         self::assertSame(AgencyBookingGroup::STATUS_CANCELLED, $body['status'] ?? null);
     }
 
+    public function testInitiateGroupCardPaymentReturnsFormUrl(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createGroupBooking($ws, ['01A', '01B']);
+
+        $body = $this->publicPost(
+            '/api/public/agency/booking-groups/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        self::assertSame(AgencyPayment::METHOD_CARD, $body['paymentMethod'] ?? null);
+        self::assertStringContainsString('/api/public/agency/payments/', (string) ($body['cardFormUrl'] ?? ''));
+    }
+
+    public function testGroupCardWebhookIssuesSingleGroupedTicket(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createGroupBooking($ws, ['02A', '02B']);
+
+        $pay = $this->publicPost(
+            '/api/public/agency/booking-groups/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        $payment = $this->em->find(AgencyPayment::class, $pay['paymentId']);
+        self::assertInstanceOf(AgencyPayment::class, $payment);
+
+        $this->client->request(
+            'POST',
+            '/api/payments/webhook/flexpay',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode([
+                'reference' => 'ABP-'.$payment->getId(),
+                'status' => 'SUCCESS',
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+
+        $this->em->refresh($payment);
+        self::assertSame(AgencyPayment::STATUS_PAID, $payment->getStatus());
+
+        $ticket = $payment->getTicket();
+        self::assertNotNull($ticket);
+        self::assertTrue($ticket->isGroupTicket());
+
+        $this->publicGet('/api/public/agency/booking-groups/'.$created['publicToken'].'/ticket');
+        $body = $this->decodeJsonResponse();
+        self::assertTrue($body['isGroupTicket'] ?? false);
+    }
+
     /**
      * @param list<string> $seats
      *

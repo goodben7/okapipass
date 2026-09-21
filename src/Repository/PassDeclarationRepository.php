@@ -80,4 +80,13 @@ class PassDeclarationRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function findOneMonthlyForAgency(Agency $agency, string $periodMonth): ?PassDeclaration
+    {
+        return $this->findOneBy([
+            'agency' => $agency,
+            'source' => PassDeclaration::SOURCE_MONTHLY,
+            'periodMonth' => $periodMonth,
+        ]);
+    }
 }

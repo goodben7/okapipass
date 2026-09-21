@@ -257,19 +257,7 @@ final class PublicAgencyPaymentManager
                 : $check->status;
 
             if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
-                $hadTicket = null !== $payment->getTicket();
-                $hadGroupTickets = $this->groupHasTickets($payment);
-                if ($payment->getBookingGroup() instanceof AgencyBookingGroup) {
-                    $ticket = $this->fulfillSuccessfulGroupPayment($payment);
-                    if (!$hadGroupTickets) {
-                        $this->notifier->notifyPaid($payment, $ticket);
-                    }
-                } else {
-                    $ticket = $this->fulfillSuccessfulPayment($payment);
-                    if (!$hadTicket) {
-                        $this->notifier->notifyPaid($payment, $ticket);
-                    }
-                }
+                $this->fulfillPaidPayment($payment);
 
                 return true;
             }
@@ -354,6 +342,10 @@ final class PublicAgencyPaymentManager
         }
 
         if (null === $transactionId || '' === \trim((string) $transactionId)) {
+            if (\in_array($incomingStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
+                $this->fulfillPaidPayment($payment);
+            }
+
             $this->em->flush();
 
             return $payment;
@@ -760,6 +752,26 @@ final class PublicAgencyPaymentManager
             groupStatus: $group->getStatus(),
             groupPaymentStatus: $group->getPaymentStatus(),
         );
+    }
+
+    private function fulfillPaidPayment(AgencyPayment $payment): void
+    {
+        $hadTicket = null !== $payment->getTicket();
+        $hadGroupTickets = $this->groupHasTickets($payment);
+
+        if ($payment->getBookingGroup() instanceof AgencyBookingGroup) {
+            $ticket = $this->fulfillSuccessfulGroupPayment($payment);
+            if (!$hadGroupTickets) {
+                $this->notifier->notifyPaid($payment, $ticket);
+            }
+
+            return;
+        }
+
+        $ticket = $this->fulfillSuccessfulPayment($payment);
+        if (!$hadTicket) {
+            $this->notifier->notifyPaid($payment, $ticket);
+        }
     }
 
     private function groupHasTickets(AgencyPayment $payment): bool

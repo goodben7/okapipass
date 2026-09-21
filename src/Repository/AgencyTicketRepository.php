@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Agency;
 use App\Entity\AgencyOffer;
 use App\Entity\AgencyTicket;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -55,5 +56,34 @@ class AgencyTicketRepository extends ServiceEntityRepository
             ->setParameter('cancelled', AgencyTicket::STATUS_CANCELLED)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * Tickets not yet attached to a FPT declaration, for a travel-date window.
+     *
+     * @return list<AgencyTicket>
+     */
+    public function findUndeclaredForAgencyPeriod(
+        Agency $agency,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+    ): array {
+        /** @var list<AgencyTicket> $tickets */
+        $tickets = $this->createQueryBuilder('t')
+            ->andWhere('t.agency = :agency')
+            ->andWhere('t.travelDate >= :from')
+            ->andWhere('t.travelDate <= :to')
+            ->andWhere('t.status != :cancelled')
+            ->andWhere('t.declaration IS NULL')
+            ->setParameter('agency', $agency)
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->setParameter('cancelled', AgencyTicket::STATUS_CANCELLED)
+            ->orderBy('t.travelDate', 'ASC')
+            ->addOrderBy('t.reference', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $tickets;
     }
 }

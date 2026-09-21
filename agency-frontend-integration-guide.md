@@ -139,7 +139,7 @@ Les relations se passent en **IRI** : `"/api/agency/offers/OF…"`.
 | Tickets | `/api/agency/tickets` (+ status, seat, refund, print, by-reference) |
 | Payments | `POST /api/agency/payments`, refund |
 | Embarkations | `/api/agency/embarkations` (+ tickets, status, declare) |
-| Declarations | `/api/agency/declarations` (+ import-csv, status, summary) |
+| Declarations | `/api/agency/declarations` (+ import-csv, **generate-monthly**, status, summary) |
 | Preview SMS/WA | `POST /api/agency/notifications/preview` |
 | Validate Pass | `GET /api/passes/validate?ref=OP-…` |
 | Staff | `/api/agency/staff` |
@@ -733,8 +733,30 @@ Référence billet : `VP-YYYY-#####` (≠ Pass `OP-…`, ≠ GoPass catalog).
 | GET/POST | `/api/agency/declarations` |
 | GET | `/api/agency/declarations/{id}` |
 | POST | `/api/agency/declarations/import-csv` |
+| POST | `/api/agency/declarations/generate-monthly` |
 | PATCH | `/api/agency/declarations/{id}/status` |
 | GET | `/api/agency/declarations/summary` |
+
+**Génération mensuelle FPT**
+
+```http
+POST /api/agency/declarations/generate-monthly
+Authorization: Bearer {jwt}
+Content-Type: application/json
+
+{ "yearMonth": "2026-08" }
+```
+
+Réponse **201** : déclaration `source: monthly`, `status: draft`, `periodMonth: "2026-08"`, lignes = billets du mois **non déjà déclarés** (`travelDate` dans le mois, hors `CANCELLED`).
+
+Règles :
+- **1 déclaration mensuelle / agence / mois** (idempotent : second appel renvoie la même)
+- Billets déjà liés à une déclaration (ex. via embarquement) **exclus**
+- FPT = somme des `passPrice` (0 si Pass existant)
+- Si aucun billet éligible → **422**
+- Ensuite : `PATCH …/status` avec `{ "status": "submitted" }` pour envoyer à l’ONT
+
+Filtres utiles : `GET /api/agency/declarations?periodMonth=2026-08&source=monthly`
 
 **Import CSV — 2 modes :**
 

@@ -35,8 +35,7 @@ final class PublicAgencyPaymentCardFormController
             return new Response('Payment is not an online agency payment', 400);
         }
 
-        $booking = $payment->getBooking();
-        $ticketRef = (string) ($booking?->getPublicToken() ?: $payment->getReference());
+        $ticketRef = $this->resolveRedirectReference($payment);
 
         $form = $this->flexPay->buildAgencyCardPaymentForm($payment, $ticketRef);
         $action = (string) ($form['action'] ?? '');
@@ -63,5 +62,20 @@ final class PublicAgencyPaymentCardFormController
         $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 
         return $response;
+    }
+
+    private function resolveRedirectReference(AgencyPayment $payment): string
+    {
+        $group = $payment->getBookingGroup();
+        if (null !== $group?->getPublicToken() && '' !== trim((string) $group->getPublicToken())) {
+            return (string) $group->getPublicToken();
+        }
+
+        $booking = $payment->getBooking();
+        if (null !== $booking?->getPublicToken() && '' !== trim((string) $booking->getPublicToken())) {
+            return (string) $booking->getPublicToken();
+        }
+
+        return (string) $payment->getReference();
     }
 }

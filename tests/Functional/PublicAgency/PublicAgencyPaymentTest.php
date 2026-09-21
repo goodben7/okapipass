@@ -40,7 +40,126 @@ final class PublicAgencyPaymentTest extends AgencyApiTestCase
         );
 
         self::assertSame(AgencyPayment::METHOD_CARD, $body['paymentMethod'] ?? null);
+        self::assertSame(AgencyPayment::STATUS_PENDING, $body['paymentStatus'] ?? null);
         self::assertStringContainsString('/api/public/agency/payments/', (string) ($body['cardFormUrl'] ?? ''));
+        self::assertNull($body['providerTransactionId'] ?? null);
+    }
+
+    public function testCardFormEndpointReturnsAutoSubmitHtml(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createPublicBooking($ws, '01B');
+
+        $pay = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        $this->client->request('GET', (string) $pay['cardFormUrl']);
+        $response = $this->client->getResponse();
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('text/html', (string) $response->headers->get('Content-Type'));
+        $html = $response->getContent() ?: '';
+        self::assertStringContainsString('flexpay-card-form', $html);
+        self::assertStringContainsString('https://flexpay.test/card', $html);
+        self::assertStringContainsString('method="POST"', $html);
+    }
+
+    public function testCardWebhookByReferenceIssuesTicket(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createPublicBooking($ws, '01C');
+
+        $pay = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        $payment = $this->em->find(AgencyPayment::class, $pay['paymentId']);
+        self::assertInstanceOf(AgencyPayment::class, $payment);
+
+        $this->client->request(
+            'POST',
+            '/api/payments/webhook/flexpay',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode([
+                'reference' => 'ABP-'.$payment->getId(),
+                'status' => 'SUCCESS',
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+
+        $this->em->refresh($payment);
+        self::assertSame(AgencyPayment::STATUS_PAID, $payment->getStatus());
+        self::assertNotNull($payment->getTicket());
+
+        $this->publicGet('/api/public/agency/bookings/'.$created['publicToken'].'/ticket');
+        $body = $this->decodeJsonResponse();
+        self::assertNotEmpty($body['reference'] ?? null);
+    }
+
+    public function testCardWebhookWithOrderNumberIssuesTicket(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createPublicBooking($ws, '01D');
+
+        $pay = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        $this->client->request(
+            'POST',
+            '/api/payments/webhook/flexpay',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode([
+                'orderNumber' => 'FP-CARD-'.($pay['paymentId'] ?? ''),
+                'reference' => 'ABP-'.($pay['paymentId'] ?? ''),
+                'status' => 'SUCCESS',
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        self::assertSame(200, $this->client->getResponse()->getStatusCode());
+
+        $payment = $this->em->find(AgencyPayment::class, $pay['paymentId']);
+        self::assertInstanceOf(AgencyPayment::class, $payment);
+        $this->em->refresh($payment);
+        self::assertSame(AgencyPayment::STATUS_PAID, $payment->getStatus());
+        self::assertNotNull($payment->getTicket());
+    }
+
+    public function testCheckStatusAfterCardWebhookReturnsPaid(): void
+    {
+        $ws = $this->createOnlineOfferWorkspace();
+        $created = $this->createPublicBooking($ws, '02A');
+
+        $pay = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay',
+            ['method' => AgencyPayment::METHOD_CARD],
+        );
+
+        $payment = $this->em->find(AgencyPayment::class, $pay['paymentId']);
+        self::assertInstanceOf(AgencyPayment::class, $payment);
+
+        $this->client->request(
+            'POST',
+            '/api/payments/webhook/flexpay',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode([
+                'reference' => 'ABP-'.$payment->getId(),
+                'status' => 'SUCCESS',
+            ], \JSON_THROW_ON_ERROR),
+        );
+
+        $body = $this->publicPost(
+            '/api/public/agency/bookings/'.$created['publicToken'].'/pay/check-status',
+            null,
+        );
+
+        self::assertSame(AgencyPayment::STATUS_PAID, $body['paymentStatus'] ?? null);
+        self::assertNotEmpty($body['ticketReference'] ?? null);
     }
 
     public function testWebhookFulfillmentIssuesTicket(): void
