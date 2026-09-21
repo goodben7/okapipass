@@ -140,6 +140,7 @@ Les relations se passent en **IRI** : `"/api/agency/offers/OF…"`.
 | Payments | `POST /api/agency/payments`, refund |
 | Embarkations | `/api/agency/embarkations` (+ tickets, status, declare) |
 | Declarations | `/api/agency/declarations` (+ import-csv, **generate-monthly**, status, summary) |
+| **Compliance (obligations État)** | `/api/agency/obligation-types`, `/api/agency/obligations`, `/api/agency/compliance/calendar` |
 | Preview SMS/WA | `POST /api/agency/notifications/preview` |
 | Validate Pass | `GET /api/passes/validate?ref=OP-…` |
 | Staff | `/api/agency/staff` |
@@ -805,7 +806,70 @@ Rejet possible : `submitted` → `rejected` (l’agence peut resoumettre).
 
 Sans Pass → FPT = tarif ROUTIER par ligne (ex. 3000 CDF).
 
-### 4.10 Notifications (preview)
+### 4.10 Compliance — calendrier des obligations État
+
+Calendrier réglementaire par agence (agrément, assurance, visite technique, FPT, etc.).
+
+| Méthode | Route |
+|---------|-------|
+| GET | `/api/agency/obligation-types` |
+| GET/POST | `/api/agency/obligations` |
+| GET/PATCH | `/api/agency/obligations/{id}` |
+| POST | `/api/agency/obligations/bootstrap` |
+| POST | `/api/agency/obligations/{id}/complete` |
+| GET | `/api/agency/compliance/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` |
+
+**Seed types (une fois en deploy) :**
+
+```bash
+php bin/console app:seed-agency-obligation-types
+```
+
+Types inclus : `AGENCY_LICENSE`, `FLEET_INSURANCE`, `TECHNICAL_INSPECTION`, `FPT_MONTHLY`, `TAX_CLEARANCE`, `TRANSPORT_AUTH`.
+
+**Créer une obligation :**
+
+```json
+{
+  "title": "Assurance flotte 2026",
+  "dueDate": "2026-12-31",
+  "type": "FLEET_INSURANCE",
+  "reference": "POL-123",
+  "reminderDays": 30
+}
+```
+
+**Bootstrap** (crée les obligations manquantes depuis le catalogue) :
+
+```http
+POST /api/agency/obligations/bootstrap
+{ "fromDate": "2026-09-21" }
+```
+
+**Calendrier :**
+
+```http
+GET /api/agency/compliance/calendar?from=2026-09-01&to=2026-12-31
+```
+
+Réponse : `kpis` (`open`, `overdue`, `dueSoon`, `upcoming`, `completed`) + `events[]` avec `urgency` / `daysRemaining`.
+
+| `status` | Signification |
+|----------|----------------|
+| `OPEN` | À traiter |
+| `COMPLETED` | Fait |
+| `CANCELLED` | Annulé |
+
+| `urgency` (calculé) | Signification |
+|---------------------|----------------|
+| `UPCOMING` | Dans le futur hors fenêtre rappel |
+| `DUE_SOON` | Dans les `reminderDays` |
+| `OVERDUE` | Échéance dépassée |
+| `DONE` | Complété / annulé |
+
+UX : vue calendrier mois + bandeau « X en retard / Y bientôt dus ».
+
+### 4.11 Notifications (preview)
 
 ```http
 POST /api/agency/notifications/preview
