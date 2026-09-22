@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -42,23 +44,23 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/embarkations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/embarkations/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/embarkations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyEmbarkationDto::class,
             processor: CreateAgencyEmbarkationProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/embarkations/{id}/tickets',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: AddEmbarkationTicketsDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: AddEmbarkationTicketsProcessor::class,
@@ -66,20 +68,20 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Delete(
             uriTemplate: '/agency/embarkations/{id}/tickets/{ticketId}',
             uriVariables: ['id', 'ticketId'],
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
             processor: RemoveEmbarkationTicketProcessor::class,
         ),
         new Patch(
             uriTemplate: '/agency/embarkations/{id}/status',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyEmbarkationStatusDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyEmbarkationStatusProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/embarkations/{id}/declare',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             provider: AgencyScopedItemProvider::class,

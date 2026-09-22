@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -15,7 +17,7 @@ use App\Provider\Agency\AgencyFleetOverviewProvider;
     operations: [
         new Get(
             uriTemplate: '/agency/fleet/overview',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyFleetOverviewProvider::class,
         ),
     ]

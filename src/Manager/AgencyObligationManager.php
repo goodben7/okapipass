@@ -5,6 +5,7 @@ namespace App\Manager;
 use App\Dto\Agency\BootstrapAgencyObligationsDto;
 use App\Dto\Agency\CreateAgencyObligationDto;
 use App\Dto\Agency\UpdateAgencyObligationDto;
+use App\Entity\Agency;
 use App\Entity\AgencyObligation;
 use App\Entity\AgencyObligationType;
 use App\Exception\UnavailableDataException;
@@ -158,9 +159,8 @@ class AgencyObligationManager
      *     events: list<array<string, mixed>>
      * }
      */
-    public function calendar(?string $fromRaw, ?string $toRaw): array
+    public function calendar(?string $fromRaw, ?string $toRaw, ?string $agencyId = null): array
     {
-        $agency = $this->agencyContext->requireAgency();
         $today = new \DateTimeImmutable('today');
         $from = null !== $fromRaw && '' !== trim($fromRaw)
             ? $this->parseDate($fromRaw)
@@ -173,9 +173,79 @@ class AgencyObligationManager
             throw new UnprocessableEntityException('Query "to" must be on or after "from".');
         }
 
+        if ($this->agencyContext->isElevated()) {
+            if (null !== $agencyId && '' !== trim($agencyId)) {
+                return $this->buildCalendar($this->agencyContext->requireAgency($agencyId), $from, $to, $today);
+            }
+            if (null !== $this->agencyContext->peekAgencyId()) {
+                return $this->buildCalendar($this->agencyContext->requireAgency(), $from, $to, $today);
+            }
+
+            return $this->buildCalendarAll($from, $to, $today);
+        }
+
+        $agency = $this->agencyContext->requireAgency($agencyId);
+
+        return $this->buildCalendar($agency, $from, $to, $today);
+    }
+
+    /**
+     * @return array{
+     *     from: string,
+     *     to: string,
+     *     kpis: array{open: int, overdue: int, dueSoon: int, upcoming: int, completed: int},
+     *     events: list<array<string, mixed>>
+     * }
+     */
+    private function buildCalendar(
+        Agency $agency,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+        \DateTimeImmutable $today,
+    ): array {
         $items = $this->obligations->findForAgencyInRange($agency, $from, $to);
         $openAll = $this->obligations->findOpenForAgency($agency);
 
+        return $this->mapCalendar($items, $openAll, $from, $to, $today);
+    }
+
+    /**
+     * @return array{
+     *     from: string,
+     *     to: string,
+     *     kpis: array{open: int, overdue: int, dueSoon: int, upcoming: int, completed: int},
+     *     events: list<array<string, mixed>>
+     * }
+     */
+    private function buildCalendarAll(
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+        \DateTimeImmutable $today,
+    ): array {
+        $items = $this->obligations->findInRange($from, $to);
+        $openAll = $this->obligations->findOpenAll();
+
+        return $this->mapCalendar($items, $openAll, $from, $to, $today);
+    }
+
+    /**
+     * @param list<AgencyObligation> $items
+     * @param list<AgencyObligation> $openAll
+     *
+     * @return array{
+     *     from: string,
+     *     to: string,
+     *     kpis: array{open: int, overdue: int, dueSoon: int, upcoming: int, completed: int},
+     *     events: list<array<string, mixed>>
+     * }
+     */
+    private function mapCalendar(
+        array $items,
+        array $openAll,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+        \DateTimeImmutable $today,
+    ): array {
         $overdue = 0;
         $dueSoon = 0;
         $upcoming = 0;
@@ -206,6 +276,8 @@ class AgencyObligationManager
                 'typeLabel' => $item->getType()?->getLabel(),
                 'category' => $item->getType()?->getCategory(),
                 'reminderDays' => $item->getReminderDays(),
+                'agencyId' => $item->getAgency()?->getId(),
+                'agencyName' => $item->getAgency()?->getName(),
             ];
         }
 

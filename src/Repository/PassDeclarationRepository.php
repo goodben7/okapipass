@@ -98,6 +98,44 @@ class PassDeclarationRepository extends ServiceEntityRepository
     }
 
     /**
+     * National FPT summary (all agencies) — same shape as summarizeForAgency.
+     *
+     * @return array{fptDue: int, currency: string, draft: int, submitted: int, validated: int, paid: int, byCurrency: array<string, int>}
+     */
+    public function summarizeNationalDetailed(): array
+    {
+        $base = $this->summarizeNational();
+
+        $byCurrencyRows = $this->createQueryBuilder('d')
+            ->select('d.currency AS currency, SUM(d.fptTotal) AS total')
+            ->andWhere('d.status IN (:due)')
+            ->setParameter('due', [
+                PassDeclaration::STATUS_DRAFT,
+                PassDeclaration::STATUS_SUBMITTED,
+                PassDeclaration::STATUS_VALIDATED,
+            ])
+            ->groupBy('d.currency')
+            ->getQuery()
+            ->getArrayResult();
+
+        $byCurrency = [];
+        foreach ($byCurrencyRows as $row) {
+            $currency = (string) ($row['currency'] ?? Agency::DEFAULT_CURRENCY);
+            $byCurrency[$currency] = (int) ($row['total'] ?? 0);
+        }
+
+        return [
+            'fptDue' => $base['draft'] + $base['submitted'] + $base['validated'],
+            'currency' => Agency::DEFAULT_CURRENCY,
+            'draft' => $base['draft'],
+            'submitted' => $base['submitted'],
+            'validated' => $base['validated'],
+            'paid' => $base['paid'],
+            'byCurrency' => $byCurrency,
+        ];
+    }
+
+    /**
      * @return array{draft: int, submitted: int, validated: int, paid: int}
      */
     public function summarizeNational(): array

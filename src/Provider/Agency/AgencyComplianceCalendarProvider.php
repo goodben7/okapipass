@@ -22,10 +22,12 @@ final class AgencyComplianceCalendarProvider implements ProviderInterface
         $request = $this->requestStack->getCurrentRequest();
         $from = $request?->query->get('from');
         $to = $request?->query->get('to');
+        $agencyId = $request?->query->get('agencyId');
         $from = \is_string($from) ? $from : null;
         $to = \is_string($to) ? $to : null;
+        $agencyId = \is_string($agencyId) ? $agencyId : null;
 
-        $data = $this->manager->calendar($from, $to);
+        $data = $this->manager->calendar($from, $to, $agencyId);
 
         return new AgencyComplianceCalendarResource(
             id: 'compliance-calendar',

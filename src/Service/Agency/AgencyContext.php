@@ -9,10 +9,12 @@ use App\Entity\User;
 use App\Enum\EntityType;
 use App\Exception\UnauthorizedActionException;
 use App\Exception\UnavailableDataException;
+use App\Exception\UnprocessableEntityException;
 use App\Model\UserProxyIntertace;
 use App\Repository\AgencyRepository;
 use App\Repository\AgencyStaffMemberRepository;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Resolves the partner agency for the current JWT user + staff RBAC.
@@ -23,6 +25,7 @@ class AgencyContext
         private Security $security,
         private AgencyRepository $agencies,
         private AgencyStaffMemberRepository $staffMembers,
+        private RequestStack $requestStack,
     ) {
     }
 
@@ -37,23 +40,60 @@ class AgencyContext
         return $user;
     }
 
+    public function isElevated(): bool
+    {
+        $user = $this->getUser();
+        $roles = $user->getRoles();
+
+        if (\in_array('ROLE_SUPER_ADMIN', $roles, true)
+            || \in_array('ROLE_SYSTEM_ADMIN', $roles, true)
+            || \in_array('ROLE_ONT_ADMIN', $roles, true)
+            || \in_array('ROLE_ONT_AGENT', $roles, true)
+        ) {
+            return true;
+        }
+
+        return \in_array($user->getPersonType(), [
+            UserProxyIntertace::PERSON_ONT_ADMIN,
+            UserProxyIntertace::PERSON_ONT_AGENT,
+        ], true);
+    }
+
     public function requirePartner(): User
     {
         $user = $this->getUser();
 
-        if (UserProxyIntertace::PERSON_PARTNER !== $user->getPersonType()
-            && !\in_array('ROLE_SUPER_ADMIN', $user->getRoles(), true)
-            && !\in_array('ROLE_SYSTEM_ADMIN', $user->getRoles(), true)
-        ) {
+        if ($this->isElevated()) {
+            return $user;
+        }
+
+        if (UserProxyIntertace::PERSON_PARTNER !== $user->getPersonType()) {
             throw new UnauthorizedActionException('Partner agency access required.');
         }
 
         return $user;
     }
 
-    public function requireAgency(): Agency
+    public function requireAgency(?string $agencyId = null): Agency
     {
         $user = $this->requirePartner();
+
+        if ($this->isElevated()) {
+            $resolvedId = $this->resolveAgencyIdParam($agencyId);
+            if (null === $resolvedId) {
+                throw new UnprocessableEntityException(
+                    'Query parameter "agencyId" is required for ONT/admin agency portal access.'
+                );
+            }
+
+            $agency = $this->agencies->find($resolvedId);
+            if (!$agency instanceof Agency) {
+                throw new UnavailableDataException(sprintf('Agency "%s" not found.', $resolvedId));
+            }
+
+            return $agency;
+        }
+
         $agency = $this->findAgencyForUser($user);
 
         if (null === $agency) {
@@ -91,8 +131,16 @@ class AgencyContext
         return null;
     }
 
-    public function assertOwns(Agency $agency): void
+    public function assertOwns(?Agency $agency): void
     {
+        if (null === $agency) {
+            throw new UnavailableDataException('Agency resource not found.');
+        }
+
+        if ($this->isElevated()) {
+            return;
+        }
+
         $current = $this->requireAgency();
 
         if ($current->getId() !== $agency->getId()) {
@@ -103,6 +151,11 @@ class AgencyContext
     public function resolveStaffRole(): string
     {
         $user = $this->requirePartner();
+
+        if ($this->isElevated()) {
+            return AgencyStaffRole::ADMIN;
+        }
+
         $agency = $this->requireAgency();
 
         if ($agency->getUserId() === $user->getId()
@@ -138,8 +191,44 @@ class AgencyContext
     {
         if (!\in_array($permission, $this->defaultPermissions(), true)
             && !\in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles(), true)
+            && !$this->isElevated()
         ) {
             throw new UnauthorizedActionException(sprintf('Missing permission "%s".', $permission));
         }
+    }
+
+    public function peekAgencyId(): ?string
+    {
+        return $this->resolveAgencyIdParam(null);
+    }
+
+    private function resolveAgencyIdParam(?string $explicit): ?string
+    {
+        if (null !== $explicit && '' !== trim($explicit)) {
+            return trim($explicit);
+        }
+
+        $request = $this->requestStack->getCurrentRequest();
+        if (null === $request) {
+            return null;
+        }
+
+        $fromQuery = $request->query->get('agencyId');
+        if (\is_string($fromQuery) && '' !== trim($fromQuery)) {
+            return trim($fromQuery);
+        }
+
+        $fromBody = null;
+        try {
+            $payload = $request->toArray();
+            $fromBody = $payload['agencyId'] ?? null;
+        } catch (\Throwable) {
+            $fromBody = null;
+        }
+        if (\is_string($fromBody) && '' !== trim($fromBody)) {
+            return trim($fromBody);
+        }
+
+        return null;
     }
 }

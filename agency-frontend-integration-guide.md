@@ -729,6 +729,8 @@ Référence billet : `VP-YYYY-#####` (≠ Pass `OP-…`, ≠ GoPass catalog).
 
 ### 4.9 Déclarations FPT
 
+Accès : `ROLE_PARTNER` (tenant auto) **ou** `ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT` / `ROLE_SUPER_ADMIN` (multi-tenant).
+
 | Méthode | Route |
 |---------|-------|
 | GET/POST | `/api/agency/declarations` |
@@ -737,6 +739,10 @@ Référence billet : `VP-YYYY-#####` (≠ Pass `OP-…`, ≠ GoPass catalog).
 | POST | `/api/agency/declarations/generate-monthly` |
 | PATCH | `/api/agency/declarations/{id}/status` |
 | GET | `/api/agency/declarations/summary` |
+
+Filtres ONT utiles : `?agency.id=AG…`, `?periodMonth=2026-08`, `?status=submitted`.  
+Summary ONT : `GET …/summary` (global) ou `?agencyId=AG…`.  
+Écritures ONT : passer `agencyId` (query ou body).
 
 **Génération mensuelle FPT**
 
@@ -809,6 +815,8 @@ Sans Pass → FPT = tarif ROUTIER par ligne (ex. 3000 CDF).
 ### 4.10 Compliance — calendrier des obligations État
 
 Calendrier réglementaire par agence (agrément, assurance, visite technique, FPT, etc.).
+
+Accès : `ROLE_PARTNER` (tenant auto) **ou** `ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT` / `ROLE_SUPER_ADMIN` (multi-tenant ; passer `agencyId` pour cibler une agence, sinon calendrier global).
 
 | Méthode | Route |
 |---------|-------|

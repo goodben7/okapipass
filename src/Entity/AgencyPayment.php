@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\State\CollectionProvider;
@@ -33,23 +35,23 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/payments',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/payments/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/payments',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyPaymentDto::class,
             processor: CreateAgencyPaymentProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/payments/{id}/refund',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             provider: AgencyScopedItemProvider::class,

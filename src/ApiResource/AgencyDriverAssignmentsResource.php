@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -16,7 +18,7 @@ use App\Provider\Agency\AgencyDriverAssignmentsProvider;
         new Get(
             uriTemplate: '/agency/drivers/{driverId}/assignments',
             uriVariables: ['driverId'],
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyDriverAssignmentsProvider::class,
         ),
     ]

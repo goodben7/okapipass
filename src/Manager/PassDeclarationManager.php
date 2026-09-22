@@ -192,11 +192,22 @@ class PassDeclarationManager
     /**
      * @return array{fptDue: int, currency: string, draft: int, submitted: int, validated: int, paid: int, byCurrency: array<string, int>}
      */
-    public function summary(): array
+    public function summary(?string $agencyId = null): array
     {
-        $agency = $this->agencyContext->requireAgency();
+        if ($this->agencyContext->isElevated()) {
+            if (null !== $agencyId && '' !== trim($agencyId)) {
+                return $this->declarations->summarizeForAgency(
+                    $this->agencyContext->requireAgency($agencyId)
+                );
+            }
+            if (null !== $this->agencyContext->peekAgencyId()) {
+                return $this->declarations->summarizeForAgency($this->agencyContext->requireAgency());
+            }
 
-        return $this->declarations->summarizeForAgency($agency);
+            return $this->declarations->summarizeNationalDetailed();
+        }
+
+        return $this->declarations->summarizeForAgency($this->agencyContext->requireAgency($agencyId));
     }
 
     private function resolveCsvContent(ImportPassDeclarationCsvDto $dto): string

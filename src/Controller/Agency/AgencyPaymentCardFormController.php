@@ -2,9 +2,11 @@
 
 namespace App\Controller\Agency;
 
-use App\Entity\AgencyPayment;
 use App\Contract\AgencyFlexPayClientInterface;
+use App\Entity\AgencyPayment;
+use App\Security\AgencyPortalAccess;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -18,7 +20,7 @@ final class AgencyPaymentCardFormController
     }
 
     #[Route(path: '/api/agency/payments/{id}/card/form', name: 'agency_payment_card_form', methods: ['GET'])]
-    #[IsGranted('ROLE_PARTNER')]
+    #[IsGranted(new Expression(AgencyPortalAccess::EXPRESSION))]
     public function __invoke(string $id): Response
     {
         /** @var AgencyPayment|null $payment */

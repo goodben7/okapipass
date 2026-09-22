@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -20,7 +22,7 @@ use App\State\Agency\AgencyTicketByReferenceProvider;
         new Get(
             uriTemplate: '/agency/tickets/by-reference/{reference}',
             uriVariables: ['reference'],
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyTicketByReferenceProvider::class,
             output: AgencyTicket::class,
             normalizationContext: ['groups' => ['agency_ticket:get']],

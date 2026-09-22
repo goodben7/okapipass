@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
@@ -43,38 +45,38 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/tickets',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/tickets/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/tickets',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyTicketDto::class,
             output: AgencyTicketCreateResult::class,
             processor: CreateAgencyTicketProcessor::class,
         ),
         new Patch(
             uriTemplate: '/agency/tickets/{id}/status',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyTicketStatusDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyTicketStatusProcessor::class,
         ),
         new Patch(
             uriTemplate: '/agency/tickets/{id}/seat',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyTicketSeatDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyTicketSeatProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/tickets/{id}/refund',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             provider: AgencyScopedItemProvider::class,

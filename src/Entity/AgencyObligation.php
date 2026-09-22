@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -39,31 +41,31 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/obligations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/obligations/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/obligations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyObligationDto::class,
             processor: CreateAgencyObligationProcessor::class,
             status: 201,
         ),
         new Patch(
             uriTemplate: '/agency/obligations/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyObligationDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyObligationProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/obligations/{id}/complete',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             provider: AgencyScopedItemProvider::class,
@@ -78,6 +80,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'title' => 'ipartial',
     'type.code' => 'exact',
     'type.category' => 'exact',
+    'agency.id' => 'exact',
 ])]
 #[ApiFilter(DateFilter::class, properties: ['dueDate'])]
 #[ApiFilter(OrderFilter::class, properties: ['dueDate', 'createdAt', 'title'])]

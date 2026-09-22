@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -29,12 +31,12 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/obligation-types',
-            security: 'is_granted("ROLE_PARTNER") or is_granted("ROLE_ONT_ADMIN") or is_granted("ROLE_ONT_AGENT")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/obligation-types/{id}',
-            security: 'is_granted("ROLE_PARTNER") or is_granted("ROLE_ONT_ADMIN") or is_granted("ROLE_ONT_AGENT")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: ItemProvider::class,
         ),
     ]

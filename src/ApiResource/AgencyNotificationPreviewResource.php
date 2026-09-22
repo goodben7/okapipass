@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Post;
@@ -13,7 +15,7 @@ use App\State\Agency\NotificationPreviewProcessor;
     operations: [
         new Post(
             uriTemplate: '/agency/notifications/preview',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: NotificationPreviewDto::class,
             output: AgencyNotificationPreviewResource::class,
             processor: NotificationPreviewProcessor::class,

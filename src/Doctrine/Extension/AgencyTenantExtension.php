@@ -35,11 +35,8 @@ final class AgencyTenantExtension implements QueryCollectionExtensionInterface
 
         $user = $this->agencyContext->getUser();
 
-        // Elevated roles can browse all tenants (support / ONT tools later).
-        if (\in_array('ROLE_SUPER_ADMIN', $user->getRoles(), true)
-            || \in_array('ROLE_SYSTEM_ADMIN', $user->getRoles(), true)
-            || UserProxyIntertace::PERSON_ONT_ADMIN === $user->getPersonType()
-        ) {
+        // Elevated roles can browse all tenants (ONT / support).
+        if ($this->agencyContext->isElevated()) {
             return;
         }
 

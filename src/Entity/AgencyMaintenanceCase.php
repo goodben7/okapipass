@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -39,31 +41,31 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/maintenance-cases',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/maintenance-cases/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/maintenance-cases',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyMaintenanceCaseDto::class,
             processor: CreateAgencyMaintenanceCaseProcessor::class,
             status: 201,
         ),
         new Patch(
             uriTemplate: '/agency/maintenance-cases/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyMaintenanceCaseDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyMaintenanceCaseProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/maintenance-cases/{id}/start',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             validate: false,
@@ -73,7 +75,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Post(
             uriTemplate: '/agency/maintenance-cases/{id}/complete',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CompleteAgencyMaintenanceCaseDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: CompleteAgencyMaintenanceCaseProcessor::class,
@@ -81,7 +83,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Post(
             uriTemplate: '/agency/maintenance-cases/{id}/cancel',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             deserialize: false,
             validate: false,

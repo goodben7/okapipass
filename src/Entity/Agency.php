@@ -83,13 +83,13 @@ class Agency implements RessourceInterface
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
     #[ORM\CustomIdGenerator(IdGenerator::class)]
     #[ORM\Column(name: 'AG_ID', length: 16)]
-    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get'])]
+    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get', 'pass_declaration:get'])]
     private ?string $id = null;
 
     #[ORM\Column(name: 'AG_NAME', length: 120)]
     #[Assert\NotBlank]
     #[Assert\Length(max: 120)]
-    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get'])]
+    #[Groups(['agency:get', 'agency_staff:get', 'agency_payment:get', 'pass_declaration:get'])]
     private ?string $name = null;
 
     #[ORM\Column(name: 'AG_EMAIL', length: 180, nullable: true)]

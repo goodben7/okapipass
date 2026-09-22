@@ -4,8 +4,10 @@ namespace App\Controller\Agency;
 
 use App\Exception\UnavailableDataException;
 use App\Repository\AgencyRentalContractRepository;
+use App\Security\AgencyPortalAccess;
 use App\Service\Agency\AgencyContext;
 use App\Service\Agency\AgencyRentalContractPdfGenerator;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -24,7 +26,7 @@ final class AgencyRentalContractPdfController
         name: 'agency_rental_contract_pdf',
         methods: ['GET'],
     )]
-    #[IsGranted('ROLE_PARTNER')]
+    #[IsGranted(new Expression(AgencyPortalAccess::EXPRESSION))]
     public function __invoke(string $id): Response
     {
         $contract = $this->contracts->find($id);

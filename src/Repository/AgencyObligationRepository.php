@@ -53,6 +53,39 @@ class AgencyObligationRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * @return list<AgencyObligation>
+     */
+    public function findInRange(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        return $this->createQueryBuilder('o')
+            ->leftJoin('o.type', 't')->addSelect('t')
+            ->leftJoin('o.agency', 'a')->addSelect('a')
+            ->andWhere('o.dueDate >= :from')
+            ->andWhere('o.dueDate <= :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('o.dueDate', 'ASC')
+            ->addOrderBy('o.title', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return list<AgencyObligation>
+     */
+    public function findOpenAll(): array
+    {
+        return $this->createQueryBuilder('o')
+            ->leftJoin('o.type', 't')->addSelect('t')
+            ->leftJoin('o.agency', 'a')->addSelect('a')
+            ->andWhere('o.status = :open')
+            ->setParameter('open', AgencyObligation::STATUS_OPEN)
+            ->orderBy('o.dueDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countOpenByTypeCode(Agency $agency, string $typeCode): int
     {
         return (int) $this->createQueryBuilder('o')

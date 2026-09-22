@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\GetCollection;
@@ -12,7 +14,7 @@ use App\Provider\Agency\OntPassTariffProvider;
     operations: [
         new GetCollection(
             uriTemplate: '/ont/pass-tariffs',
-            security: 'is_granted("ROLE_PARTNER") or is_granted("ROLE_ONT_AGENT") or is_granted("ROLE_ONT_ADMIN")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: OntPassTariffProvider::class,
             paginationEnabled: false,
         ),

@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Doctrine\Orm\State\CollectionProvider;
@@ -40,23 +42,23 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/declarations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/declarations/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/declarations',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreatePassDeclarationDto::class,
             processor: CreatePassDeclarationProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/declarations/import-csv',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: ImportPassDeclarationCsvDto::class,
             processor: ImportPassDeclarationCsvProcessor::class,
             inputFormats: [
@@ -67,14 +69,14 @@ use Symfony\Component\Validator\Constraints as Assert;
         ),
         new Post(
             uriTemplate: '/agency/declarations/generate-monthly',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: GenerateMonthlyPassDeclarationDto::class,
             processor: GenerateMonthlyPassDeclarationProcessor::class,
             status: 201,
         ),
         new Patch(
             uriTemplate: '/agency/declarations/{id}/status',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdatePassDeclarationStatusDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdatePassDeclarationStatusProcessor::class,
@@ -87,6 +89,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     'source' => 'exact',
     'label' => 'ipartial',
     'periodMonth' => 'exact',
+    'agency.id' => 'exact',
 ])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'submittedAt', 'fptTotal', 'periodMonth'])]
 class PassDeclaration implements RessourceInterface, AgencyScopedInterface

@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -16,7 +18,7 @@ use App\Provider\Agency\AgencyTransportAvailabilityProvider;
         new Get(
             uriTemplate: '/agency/transports/{transportId}/availability',
             uriVariables: ['transportId'],
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyTransportAvailabilityProvider::class,
         ),
     ]

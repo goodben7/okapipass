@@ -1,12 +1,14 @@
 # Guide d’intégration front — Dashboard ONT
 
-| Champ | Valeur |
-|-------|--------|
-| **Audience** | Dev front portail ONT (`ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT`) |
-| **Endpoint** | `GET /api/ont/dashboard` |
-| **Auth** | JWT Bearer |
+
+| Champ          | Valeur                                                       |
+| -------------- | ------------------------------------------------------------ |
+| **Audience**   | Dev front portail ONT (`ROLE_ONT_ADMIN` / `ROLE_ONT_AGENT`)  |
+| **Endpoint**   | `GET /api/ont/dashboard`                                     |
+| **Auth**       | JWT Bearer                                                   |
 | **Temps réel** | Polling recommandé (`pollSuggestedSeconds`, défaut **15 s**) |
-| **Date** | 2026-09-21 |
+| **Date**       | 2026-09-21                                                   |
+
 
 ---
 
@@ -33,14 +35,44 @@ Option période (KPI billets / Pass du mois) :
 GET /api/ont/dashboard?periodMonth=2026-08
 ```
 
-| Qui | Accès |
-|-----|--------|
-| `ROLE_ONT_ADMIN` | oui |
-| `ROLE_ONT_AGENT` | oui |
-| `ROLE_SUPER_ADMIN` | oui |
-| `ROLE_PARTNER` | **403** |
+
+| Qui                | Accès   |
+| ------------------ | ------- |
+| `ROLE_ONT_ADMIN`   | oui     |
+| `ROLE_ONT_AGENT`   | oui     |
+| `ROLE_SUPER_ADMIN` | oui     |
+| `ROLE_PARTNER`     | **403** |
+
+
+Les rôles ONT / SUPER_ADMIN ont aussi accès au portail agence (`/api/agency/*`) en lecture multi-tenant.
+
+Pour le **calendrier des obligations** :
+
+```http
+GET /api/agency/compliance/calendar?from=2026-09-01&to=2026-12-31
+GET /api/agency/compliance/calendar?agencyId=AG…&from=2026-09-01&to=2026-12-31
+GET /api/agency/obligations?agency.id=AG…
+```
+
+Sans `agencyId` → vue globale toutes agences. Avec `agencyId` (query ou body) → agence ciblée. Les écritures (create / bootstrap / complete) exigent `agencyId`.
+
+### Déclarations FPT (portail agence, lecture ONT)
+
+```http
+GET /api/agency/declarations
+GET /api/agency/declarations?agency.id=AG…&status=submitted
+GET /api/agency/declarations/{id}
+GET /api/agency/declarations/summary
+GET /api/agency/declarations/summary?agencyId=AG…
+```
+
+Actions ONT métier (valider / rejeter / payer) restent sur `/api/ont/fpt-declarations/*`.
+
+
 
 ---
+
+
 
 ## 2. Shape réponse
 
@@ -112,21 +144,28 @@ GET /api/ont/dashboard?periodMonth=2026-08
 
 ---
 
+
+
 ## 3. UX recommandée
 
-| Bloc UI | Source |
-|---------|--------|
-| Cartes KPI | `kpis.*` |
-| Courbe / barres FPT | `fptByMonth` |
-| Fil d’activité | `recentDeclarations` |
-| Classement agences | `topAgenciesByFptDue` |
-| Bannière alertes | `alerts` (`severity`: `warning` \| `critical`) |
+
+| Bloc UI             | Source                                        |
+| ------------------- | --------------------------------------------- |
+| Cartes KPI          | `kpis.*`                                      |
+| Courbe / barres FPT | `fptByMonth`                                  |
+| Fil d’activité      | `recentDeclarations`                          |
+| Classement agences  | `topAgenciesByFptDue`                         |
+| Bannière alertes    | `alerts` (`severity`: `warning` | `critical`) |
+
 
 **Polling « temps réel » :**
+
 1. Au montage : `GET /ont/dashboard`
 2. Toutes les `pollSuggestedSeconds` (15) : refetch
 3. Afficher `generatedAt` (« Mis à jour à … »)
 4. Pause le polling si l’onglet est caché (`document.visibilityState`)
+
+
 
 ### Actions FPT ONT (workflow)
 
@@ -135,15 +174,19 @@ draft → submitted → validated → paid
                  ↘ rejected  → (agence resoumet) → submitted
 ```
 
-| Action | Route | Qui |
-|--------|-------|-----|
-| Valider | `POST /api/ont/fpt-declarations/{id}/validate` | ONT_ADMIN |
-| Rejeter | `POST /api/ont/fpt-declarations/{id}/reject` + `{ "reason": "…" }` | ONT_ADMIN |
-| Marquer payé | `POST /api/ont/fpt-declarations/{id}/pay` | ONT_ADMIN (après `validated`) |
+
+| Action       | Route                                                              | Qui                           |
+| ------------ | ------------------------------------------------------------------ | ----------------------------- |
+| Valider      | `POST /api/ont/fpt-declarations/{id}/validate`                     | ONT_ADMIN                     |
+| Rejeter      | `POST /api/ont/fpt-declarations/{id}/reject` + `{ "reason": "…" }` | ONT_ADMIN                     |
+| Marquer payé | `POST /api/ont/fpt-declarations/{id}/pay`                          | ONT_ADMIN (après `validated`) |
+
 
 Pay sans validation → **422**.
 
 ---
+
+
 
 ## 4. Checklist front ONT
 
@@ -154,6 +197,7 @@ Pay sans validation → **422**.
 - [ ] Liste alertes + deep-link déclaration / agence
 - [ ] File d’attente FPT : valider / rejeter / payer
 - [ ] Afficher `rejectionReason` côté agence si rejeté
-- [ ] Ne pas appeler `/api/agency/*` depuis le portail ONT
+- [ ] Compliance : `GET /api/agency/compliance/calendar` (+ `agencyId` optionnel)
+- [ ] Liste obligations filtrable `?agency.id=`
 
 Tests backend : `tests/Functional/Ont/OntDashboardTest.php`, `OntFptValidationWorkflowTest.php`

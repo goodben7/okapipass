@@ -41,7 +41,7 @@ security:
         # Public B2C agency shop (Sprint 1+)
         - { path: ^/api/public/agency, roles: PUBLIC_ACCESS }
         # Agency portal namespace — does not affect /api/agencies
-        - { path: ^/api/agency, roles: ROLE_PARTNER }
+        - { path: ^/api/agency, roles: [ROLE_PARTNER, ROLE_ONT_ADMIN, ROLE_ONT_AGENT, ROLE_SUPER_ADMIN] }
         - { path: ^/api/passes, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api/ont, roles: IS_AUTHENTICATED_FULLY }
         - { path: '^/api/tickets/.*/download-pdf', roles: PUBLIC_ACCESS }

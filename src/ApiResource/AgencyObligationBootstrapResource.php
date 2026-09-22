@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Post;
@@ -13,7 +15,7 @@ use App\State\Agency\BootstrapAgencyObligationsProcessor;
     operations: [
         new Post(
             uriTemplate: '/agency/obligations/bootstrap',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: BootstrapAgencyObligationsDto::class,
             output: AgencyObligationBootstrapResource::class,
             processor: BootstrapAgencyObligationsProcessor::class,

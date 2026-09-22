@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Doctrine\Orm\Filter\DateFilter;
 use ApiPlatform\Doctrine\Orm\Filter\OrderFilter;
 use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
@@ -40,38 +42,38 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(
             uriTemplate: '/agency/bookings',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: CollectionProvider::class,
         ),
         new Get(
             uriTemplate: '/agency/bookings/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyScopedItemProvider::class,
         ),
         new Post(
             uriTemplate: '/agency/bookings',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: CreateAgencyBookingDto::class,
             output: AgencyBookingCreateResult::class,
             processor: CreateAgencyBookingProcessor::class,
         ),
         new Patch(
             uriTemplate: '/agency/bookings/{id}',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyBookingDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyBookingProcessor::class,
         ),
         new Patch(
             uriTemplate: '/agency/bookings/{id}/status',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: UpdateAgencyBookingStatusDto::class,
             provider: AgencyScopedItemProvider::class,
             processor: UpdateAgencyBookingStatusProcessor::class,
         ),
         new Post(
             uriTemplate: '/agency/bookings/{id}/issue-ticket',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             input: false,
             read: true,
             provider: AgencyScopedItemProvider::class,

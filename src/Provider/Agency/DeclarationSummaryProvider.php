@@ -6,17 +6,23 @@ use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProviderInterface;
 use App\ApiResource\AgencyDeclarationSummaryResource;
 use App\Manager\PassDeclarationManager;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /** @implements ProviderInterface<AgencyDeclarationSummaryResource> */
 final class DeclarationSummaryProvider implements ProviderInterface
 {
-    public function __construct(private PassDeclarationManager $manager)
-    {
+    public function __construct(
+        private PassDeclarationManager $manager,
+        private RequestStack $requestStack,
+    ) {
     }
 
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): AgencyDeclarationSummaryResource
     {
-        $summary = $this->manager->summary();
+        $raw = $this->requestStack->getCurrentRequest()?->query->get('agencyId');
+        $agencyId = \is_string($raw) ? $raw : null;
+
+        $summary = $this->manager->summary($agencyId);
 
         return new AgencyDeclarationSummaryResource(
             id: 'summary',

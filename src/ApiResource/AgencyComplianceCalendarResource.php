@@ -2,6 +2,8 @@
 
 namespace App\ApiResource;
 
+use App\Security\AgencyPortalAccess;
+
 use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -12,7 +14,7 @@ use App\Provider\Agency\AgencyComplianceCalendarProvider;
     operations: [
         new Get(
             uriTemplate: '/agency/compliance/calendar',
-            security: 'is_granted("ROLE_PARTNER")',
+            security: AgencyPortalAccess::EXPRESSION,
             provider: AgencyComplianceCalendarProvider::class,
         ),
     ]
