@@ -93,29 +93,35 @@ jobs:
             git checkout main
             git reset --hard origin/main
 
-            # Stack Docker (MySQL inchangé si image/identiques)
-            docker compose -f docker-compose.vps.yml --env-file .env.vps up -d --build
+            COMPOSE="docker compose -f docker-compose.vps.yml --env-file .env.vps"
 
-            # Stop worker pendant composer/cache pour éviter la race Symfony (var/cache/de_)
-            docker compose -f docker-compose.vps.yml --env-file .env.vps stop worker || true
+            # Build images ; mysql/nginx up ; stop php/worker avant wipe cache
+            $COMPOSE build
+            $COMPOSE up -d mysql nginx
+            $COMPOSE stop worker php || true
 
-            # Dépendances PHP (code monté en volume) — sans auto-scripts (cache:clear)
-            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+            # Wipe + composer hors FPM (entrypoint désactivé pour éviter warmup concurrent)
+            $COMPOSE run --rm --no-deps --entrypoint sh php -c '
+              set -e
               git config --global --add safe.directory /var/www/html || true
-            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
-              rm -rf var/cache/*
-            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+              mkdir -p var/cache var/log
+              find var/cache -mindepth 1 -delete 2>/dev/null || rm -rf var/cache/dev var/cache/prod || true
+              mkdir -p var/cache
               composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+            '
 
-            # Migrations (après que la DB soit up — pas via recreate entrypoint seul)
-            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
+            $COMPOSE up -d php
+            # Attendre entrypoint (migrate/warmup)
+            sleep 10
+
+            $COMPOSE exec -T php \
               php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
-            docker compose -f docker-compose.vps.yml --env-file .env.vps exec -T php \
-              php bin/console cache:clear --no-interaction
+            # Warm only — jamais cache:clear pendant FPM actif
+            $COMPOSE exec -T php \
+              php bin/console cache:warmup --no-interaction || true
 
-            # Évite 502 si IP Docker de php a changé
-            docker compose -f docker-compose.vps.yml --env-file .env.vps restart nginx
+            $COMPOSE restart nginx
             sleep 5
 
             # Healthcheck (éviter case/;; — mal parsé par drone-ssh)
@@ -123,10 +129,10 @@ jobs:
             echo "Health /api/docs → HTTP ${code}"
             if [ "${code}" != "200" ] && [ "${code}" != "301" ] && [ "${code}" != "302" ]; then
               echo "Deploy healthcheck failed"
-              docker compose -f docker-compose.vps.yml --env-file .env.vps start worker || true
+              $COMPOSE start worker || true
               exit 1
             fi
 
-            docker compose -f docker-compose.vps.yml --env-file .env.vps start worker
+            $COMPOSE start worker
 
             echo "Deploy OK → $(git rev-parse --short HEAD)"
