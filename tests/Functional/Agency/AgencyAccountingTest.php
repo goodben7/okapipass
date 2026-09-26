@@ -29,14 +29,25 @@ final class AgencyAccountingTest extends AgencyApiTestCase
         $manager = static::getContainer()->get(AccountingAgencyManager::class);
         $manager->recordFromAgencyPayment($payment);
 
-        $journal = $this->em->getRepository(AccountingJournal::class)->findOneBy([
+        /** @var list<AccountingJournal> $journals */
+        $journals = $this->em->getRepository(AccountingJournal::class)->findBy([
             'sourceType' => AccountingJournal::SOURCE_AGENCY_PAYMENT,
             'sourceId' => $payment->getId(),
         ]);
-        self::assertInstanceOf(AccountingJournal::class, $journal);
-        self::assertSame(12000, $journal->getAmount());
-        self::assertSame(AccountingJournal::ACCOUNT_MM, $journal->getAccount());
-        self::assertSame(AccountingJournal::DIRECTION_CREDIT, $journal->getDirection());
+        self::assertCount(2, $journals);
+
+        $byAccount = [];
+        foreach ($journals as $journal) {
+            $byAccount[$journal->getAccount()] = $journal;
+        }
+
+        self::assertArrayHasKey(AccountingJournal::ACCOUNT_MM, $byAccount);
+        self::assertSame(12000, $byAccount[AccountingJournal::ACCOUNT_MM]->getAmount());
+        self::assertSame(AccountingJournal::DIRECTION_DEBIT, $byAccount[AccountingJournal::ACCOUNT_MM]->getDirection());
+
+        self::assertArrayHasKey(AccountingJournal::ACCOUNT_SALES, $byAccount);
+        self::assertSame(12000, $byAccount[AccountingJournal::ACCOUNT_SALES]->getAmount());
+        self::assertSame(AccountingJournal::DIRECTION_CREDIT, $byAccount[AccountingJournal::ACCOUNT_SALES]->getDirection());
 
         $list = $this->api('GET', '/api/agency/accounting/journal', $ws['token'], null, 200);
         $member = $list['member'] ?? $list['hydra:member'] ?? (array_is_list($list) ? $list : []);
