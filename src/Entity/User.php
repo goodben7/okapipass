@@ -29,6 +29,7 @@ use App\State\CreateUserProcessor;
 use App\State\DeleteUserProcessor;
 use App\State\ToggleLockUserProcessor;
 use App\State\UpdateUserProcessor;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -141,6 +142,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Ressour
     #[ORM\Column(name: 'US_DISPLAY_NAME', length: 120, nullable: true)]
     #[Groups(['user:get', 'ticket:get', 'agency_staff:get', 'agency_payment:get'])]
     private ?string $displayName = null;
+
+    #[ORM\Column(name: 'US_ID_DOCUMENT', length: 80, nullable: true)]
+    #[Groups(['user:get'])]
+    private ?string $idDocument = null;
+
+    #[ORM\Column(name: 'US_EMERGENCY_CONTACT_NAME', length: 120, nullable: true)]
+    #[Groups(['user:get'])]
+    private ?string $emergencyContactName = null;
+
+    #[ORM\Column(name: 'US_EMERGENCY_CONTACT_PHONE', length: 20, nullable: true)]
+    #[Groups(['user:get'])]
+    private ?string $emergencyContactPhone = null;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(name: 'US_PREFERENCES', type: Types::JSON, nullable: true)]
+    #[Groups(['user:get'])]
+    private ?array $preferences = null;
 
     #[ORM\Column(name: 'US_DELETED', options: ['default' => false])]
     #[Groups(['user:get'])]
@@ -298,6 +316,60 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Ressour
     public function setDisplayName(?string $displayName): static
     {
         $this->displayName = $displayName;
+
+        return $this;
+    }
+
+    public function getIdDocument(): ?string
+    {
+        return $this->idDocument;
+    }
+
+    public function setIdDocument(?string $idDocument): static
+    {
+        $this->idDocument = null !== $idDocument && '' !== trim($idDocument) ? trim($idDocument) : null;
+
+        return $this;
+    }
+
+    public function getEmergencyContactName(): ?string
+    {
+        return $this->emergencyContactName;
+    }
+
+    public function setEmergencyContactName(?string $emergencyContactName): static
+    {
+        $this->emergencyContactName = null !== $emergencyContactName && '' !== trim($emergencyContactName)
+            ? trim($emergencyContactName)
+            : null;
+
+        return $this;
+    }
+
+    public function getEmergencyContactPhone(): ?string
+    {
+        return $this->emergencyContactPhone;
+    }
+
+    public function setEmergencyContactPhone(?string $emergencyContactPhone): static
+    {
+        $this->emergencyContactPhone = null !== $emergencyContactPhone && '' !== trim($emergencyContactPhone)
+            ? trim($emergencyContactPhone)
+            : null;
+
+        return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getPreferences(): ?array
+    {
+        return $this->preferences;
+    }
+
+    /** @param array<string, mixed>|null $preferences */
+    public function setPreferences(?array $preferences): static
+    {
+        $this->preferences = $preferences;
 
         return $this;
     }

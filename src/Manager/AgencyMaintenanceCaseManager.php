@@ -13,6 +13,7 @@ use App\Exception\UnprocessableEntityException;
 use App\Repository\AgencyMaintenanceCaseRepository;
 use App\Repository\AgencyTransportRepository;
 use App\Service\Agency\AgencyContext;
+use App\Service\Agency\AgencyTransportMaintenanceSync;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class AgencyMaintenanceCaseManager
@@ -23,6 +24,7 @@ final class AgencyMaintenanceCaseManager
         private AgencyMaintenanceCaseRepository $cases,
         private AgencyTransportRepository $transports,
         private AgencyFleetNotifier $fleetNotifier,
+        private AgencyTransportMaintenanceSync $transportSync,
     ) {
     }
 
@@ -192,17 +194,7 @@ final class AgencyMaintenanceCaseManager
 
     public function syncTransportMaintenanceStatus(AgencyTransport $transport): void
     {
-        if ($this->cases->countBlockingByTransport($transport) > 0) {
-            if (AgencyTransport::STATUS_INACTIVE !== $transport->getStatus()) {
-                $transport->setStatus(AgencyTransport::STATUS_MAINTENANCE);
-            }
-
-            return;
-        }
-
-        if (AgencyTransport::STATUS_MAINTENANCE === $transport->getStatus()) {
-            $transport->setStatus(AgencyTransport::STATUS_ACTIVE);
-        }
+        $this->transportSync->syncTransportMaintenanceStatus($transport);
     }
 
     private function applyStatusTransition(AgencyMaintenanceCase $case, string $status): void

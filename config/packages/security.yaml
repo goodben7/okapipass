@@ -40,6 +40,10 @@ security:
     access_control:
         # Public B2C agency shop (Sprint 1+)
         - { path: ^/api/public/agency, roles: PUBLIC_ACCESS }
+        - { path: ^/api/public/auth, roles: PUBLIC_ACCESS }
+        - { path: ^/api/public/tickets/share, roles: PUBLIC_ACCESS }
+        # Traveler member space (OTP JWT)
+        - { path: ^/api/traveler, roles: ROLE_TRAVELER }
         # Agency portal namespace — does not affect /api/agencies
         - { path: ^/api/agency, roles: [ROLE_PARTNER, ROLE_ONT_ADMIN, ROLE_ONT_AGENT, ROLE_SUPER_ADMIN] }
         - { path: ^/api/passes, roles: IS_AUTHENTICATED_FULLY }

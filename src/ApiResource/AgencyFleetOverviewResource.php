@@ -29,6 +29,7 @@ class AgencyFleetOverviewResource
      * @param list<array<string, mixed>>        $recentMaintenanceCases
      * @param list<array<string, mixed>>        $activeRentals
      * @param list<array<string, mixed>>        $expiringLicenses
+     * @param list<array<string, mixed>>        $expiringDocuments
      */
     public function __construct(
         #[ApiProperty(identifier: true)]
@@ -37,6 +38,7 @@ class AgencyFleetOverviewResource
         public array $recentMaintenanceCases,
         public array $activeRentals,
         public array $expiringLicenses,
+        public array $expiringDocuments = [],
     ) {
     }
 }

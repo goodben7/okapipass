@@ -152,6 +152,39 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
 
     public const int DEFAULT_BOOKING_HOLD_MINUTES = 15;
 
+    /** Hours a traveler preorder is held before auto-expire. */
+    #[ORM\Column(name: 'AO_PREORDER_HOLD_HOURS', options: ['default' => self::DEFAULT_PREORDER_HOLD_HOURS])]
+    #[Assert\Positive]
+    #[Groups(['agency_offer:get'])]
+    private int $preorderHoldHours = self::DEFAULT_PREORDER_HOLD_HOURS;
+
+    public const int DEFAULT_PREORDER_HOLD_HOURS = 72;
+
+    public const int DEFAULT_BAGGAGE_FREE_KG = 20;
+
+    public const int DEFAULT_NOSHOW_RELEASE_MINUTES = 30;
+
+    #[ORM\Column(name: 'AO_BAGGAGE_FREE_KG', options: ['default' => self::DEFAULT_BAGGAGE_FREE_KG])]
+    #[Assert\PositiveOrZero]
+    #[Groups(['agency_offer:get'])]
+    private int $baggageFreeKg = self::DEFAULT_BAGGAGE_FREE_KG;
+
+    #[ORM\Column(name: 'AO_BAGGAGE_EXCESS_PRICE_PER_KG', options: ['default' => 0])]
+    #[Assert\PositiveOrZero]
+    #[Groups(['agency_offer:get'])]
+    private int $baggageExcessPricePerKg = 0;
+
+    #[ORM\Column(name: 'AO_NOSHOW_RELEASE_MINUTES', options: ['default' => self::DEFAULT_NOSHOW_RELEASE_MINUTES])]
+    #[Assert\Positive]
+    #[Groups(['agency_offer:get'])]
+    private int $noShowReleaseMinutes = self::DEFAULT_NOSHOW_RELEASE_MINUTES;
+
+    /** Minimum age allowed to travel without escort; null = no rule. */
+    #[ORM\Column(name: 'AO_MIN_UNACCOMPANIED_AGE', nullable: true)]
+    #[Assert\PositiveOrZero]
+    #[Groups(['agency_offer:get'])]
+    private ?int $minUnaccompaniedAge = null;
+
     #[ORM\Column(name: 'AO_CREATED_AT')]
     #[Groups(['agency_offer:get'])]
     private ?\DateTimeImmutable $createdAt = null;
@@ -305,6 +338,66 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     public function setBookingHoldMinutes(int $bookingHoldMinutes): static
     {
         $this->bookingHoldMinutes = $bookingHoldMinutes;
+
+        return $this;
+    }
+
+    public function getPreorderHoldHours(): int
+    {
+        return $this->preorderHoldHours;
+    }
+
+    public function setPreorderHoldHours(int $preorderHoldHours): static
+    {
+        $this->preorderHoldHours = $preorderHoldHours;
+
+        return $this;
+    }
+
+    public function getBaggageFreeKg(): int
+    {
+        return $this->baggageFreeKg;
+    }
+
+    public function setBaggageFreeKg(int $baggageFreeKg): static
+    {
+        $this->baggageFreeKg = $baggageFreeKg;
+
+        return $this;
+    }
+
+    public function getBaggageExcessPricePerKg(): int
+    {
+        return $this->baggageExcessPricePerKg;
+    }
+
+    public function setBaggageExcessPricePerKg(int $baggageExcessPricePerKg): static
+    {
+        $this->baggageExcessPricePerKg = $baggageExcessPricePerKg;
+
+        return $this;
+    }
+
+    public function getNoShowReleaseMinutes(): int
+    {
+        return $this->noShowReleaseMinutes;
+    }
+
+    public function setNoShowReleaseMinutes(int $noShowReleaseMinutes): static
+    {
+        $this->noShowReleaseMinutes = $noShowReleaseMinutes;
+
+        return $this;
+    }
+
+    public function getMinUnaccompaniedAge(): ?int
+    {
+        return $this->minUnaccompaniedAge;
+    }
+
+    public function setMinUnaccompaniedAge(?int $minUnaccompaniedAge): static
+    {
+        $this->minUnaccompaniedAge = $minUnaccompaniedAge;
 
         return $this;
     }

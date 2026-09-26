@@ -37,6 +37,18 @@ class UpdateAgencyOfferDto
 
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = null,
+
+        #[Assert\PositiveOrZero]
+        public ?int $baggageFreeKg = null,
+
+        #[Assert\PositiveOrZero]
+        public ?int $baggageExcessPricePerKg = null,
+
+        #[Assert\Positive]
+        public ?int $noShowReleaseMinutes = null,
+
+        #[Assert\PositiveOrZero]
+        public ?int $minUnaccompaniedAge = null,
     ) {
     }
 }

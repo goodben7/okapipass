@@ -24,6 +24,7 @@ use App\State\Agency\AgencyScopedItemProvider;
 use App\State\Agency\CreateAgencyTransportProcessor;
 use App\State\Agency\DeleteAgencyTransportProcessor;
 use App\State\Agency\UpdateAgencyTransportProcessor;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -127,6 +128,22 @@ class AgencyTransport implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_transport:get', 'agency_offer:get'])]
     private string $status = self::STATUS_ACTIVE;
 
+    #[ORM\Column(name: 'AT_NEXT_SERVICE_KM', nullable: true)]
+    #[Groups(['agency_transport:get'])]
+    private ?int $nextServiceKm = null;
+
+    #[ORM\Column(name: 'AT_NEXT_SERVICE_DATE', type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['agency_transport:get'])]
+    private ?\DateTimeImmutable $nextServiceDate = null;
+
+    #[ORM\Column(name: 'AT_INSURANCE_EXPIRES_AT', type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['agency_transport:get'])]
+    private ?\DateTimeImmutable $insuranceExpiresAt = null;
+
+    #[ORM\Column(name: 'AT_TECHNICAL_CONTROL_EXPIRES_AT', type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['agency_transport:get'])]
+    private ?\DateTimeImmutable $technicalControlExpiresAt = null;
+
     #[ORM\Column(name: 'AT_CREATED_AT')]
     #[Groups(['agency_transport:get'])]
     private ?\DateTimeImmutable $createdAt = null;
@@ -227,6 +244,54 @@ class AgencyTransport implements RessourceInterface, AgencyScopedInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getNextServiceKm(): ?int
+    {
+        return $this->nextServiceKm;
+    }
+
+    public function setNextServiceKm(?int $nextServiceKm): static
+    {
+        $this->nextServiceKm = $nextServiceKm;
+
+        return $this;
+    }
+
+    public function getNextServiceDate(): ?\DateTimeImmutable
+    {
+        return $this->nextServiceDate;
+    }
+
+    public function setNextServiceDate(?\DateTimeImmutable $nextServiceDate): static
+    {
+        $this->nextServiceDate = $nextServiceDate;
+
+        return $this;
+    }
+
+    public function getInsuranceExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->insuranceExpiresAt;
+    }
+
+    public function setInsuranceExpiresAt(?\DateTimeImmutable $insuranceExpiresAt): static
+    {
+        $this->insuranceExpiresAt = $insuranceExpiresAt;
+
+        return $this;
+    }
+
+    public function getTechnicalControlExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->technicalControlExpiresAt;
+    }
+
+    public function setTechnicalControlExpiresAt(?\DateTimeImmutable $technicalControlExpiresAt): static
+    {
+        $this->technicalControlExpiresAt = $technicalControlExpiresAt;
 
         return $this;
     }

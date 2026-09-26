@@ -10,6 +10,9 @@ use App\Exception\UnprocessableEntityException;
  */
 final class SeatLayoutBuilder
 {
+    public const string CLASS_PREMIUM = 'PREMIUM';
+    public const string CLASS_STANDARD = 'STANDARD';
+
     /**
      * @return array{
      *     kind: string,
@@ -17,6 +20,7 @@ final class SeatLayoutBuilder
      *     columns: list<string>,
      *     aisleAfter: int,
      *     seatIds: list<string>,
+     *     seatClasses: array<string, string>,
      *     capacity: int
      * }
      */
@@ -33,16 +37,19 @@ final class SeatLayoutBuilder
         };
 
         $colsPerRow = \count($columns);
-        $aisleAfter = 1; // A B | C D  or  A B | C
+        $aisleAfter = 1;
         $rows = (int) ceil($capacity / $colsPerRow);
         $seatIds = [];
+        $seatClasses = [];
 
         for ($row = 1; $row <= $rows; ++$row) {
             foreach ($columns as $col) {
                 if (\count($seatIds) >= $capacity) {
                     break 2;
                 }
-                $seatIds[] = sprintf('%02d%s', $row, $col);
+                $seatId = sprintf('%02d%s', $row, $col);
+                $seatIds[] = $seatId;
+                $seatClasses[$seatId] = 1 === $row ? self::CLASS_PREMIUM : self::CLASS_STANDARD;
             }
         }
 
@@ -52,8 +59,19 @@ final class SeatLayoutBuilder
             'columns' => $columns,
             'aisleAfter' => $aisleAfter,
             'seatIds' => $seatIds,
+            'seatClasses' => $seatClasses,
             'capacity' => $capacity,
         ];
+    }
+
+    public function seatClassFor(string $seatNumber): string
+    {
+        $normalized = strtoupper(trim($seatNumber));
+        if (preg_match('/^0*1[A-Z]$/', $normalized)) {
+            return self::CLASS_PREMIUM;
+        }
+
+        return self::CLASS_STANDARD;
     }
 
     public function isValidSeat(string $kind, int $capacity, string $seatNumber): bool

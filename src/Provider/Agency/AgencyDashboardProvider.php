@@ -10,6 +10,7 @@ use App\Domain\Agency\SeatOccupancyService;
 use App\Entity\AgencyBooking;
 use App\Entity\AgencyTicket;
 use App\Entity\AgencyTransport;
+use App\Manager\AccountingAgencyManager;
 use App\Repository\AgencyBookingRepository;
 use App\Repository\AgencyEmbarkationRepository;
 use App\Repository\AgencyOfferRepository;
@@ -31,6 +32,7 @@ final class AgencyDashboardProvider implements ProviderInterface
         private AgencyEmbarkationRepository $embarkations,
         private SeatOccupancyService $occupancy,
         private AgencyFleetOverviewService $fleetOverview,
+        private AccountingAgencyManager $accounting,
     ) {
     }
 
@@ -110,6 +112,12 @@ final class AgencyDashboardProvider implements ProviderInterface
             ];
         }
 
+        $alerts = $this->accounting->alerts($agency);
+        $cashRiskCount = \count($alerts['cashVariances'] ?? []);
+        $todayStats = $this->accounting->ticketCancelStats($agency, $today, $today->setTime(23, 59, 59));
+        $weekFrom = $today->modify('-6 days')->setTime(0, 0);
+        $weekStats = $this->accounting->ticketCancelStats($agency, $weekFrom, $today->setTime(23, 59, 59));
+
         return new AgencyDashboardResource(
             id: 'dashboard',
             ticketsToday: $ticketsToday,
@@ -120,6 +128,9 @@ final class AgencyDashboardProvider implements ProviderInterface
             recentDeclarations: $recentDeclarations,
             departuresToday: $departuresToday,
             fleet: $this->fleetOverview->buildOverview($agency)['kpis'],
+            cashRiskCount: $cashRiskCount,
+            cancelRate7d: $weekStats['rate'],
+            cancelRateToday: $todayStats['rate'],
         );
     }
 }

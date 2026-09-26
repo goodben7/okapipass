@@ -1,3 +1,6 @@
 services:
     App\Contract\AgencyFlexPayClientInterface:
         class: App\Tests\Stub\StubAgencyFlexPayClient
+
+    # Never hit Dream Digital during PHPUnit
+    App\Contract\AgencySmsSenderInterface: '@App\Service\Agency\LoggingAgencySmsSender'

@@ -22,6 +22,18 @@ class UpdateAgencyTransportDto
 
         #[Assert\Choice(callback: [AgencyTransport::class, 'getStatusesAsList'])]
         public ?string $status = null,
+
+        #[Assert\PositiveOrZero]
+        public ?int $nextServiceKm = null,
+
+        #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}$/')]
+        public ?string $nextServiceDate = null,
+
+        #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}$/')]
+        public ?string $insuranceExpiresAt = null,
+
+        #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}$/')]
+        public ?string $technicalControlExpiresAt = null,
     ) {
     }
 }

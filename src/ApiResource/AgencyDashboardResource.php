@@ -38,6 +38,9 @@ class AgencyDashboardResource
         public array $recentDeclarations,
         public array $departuresToday,
         public array $fleet,
+        public int $cashRiskCount = 0,
+        public float $cancelRate7d = 0.0,
+        public float $cancelRateToday = 0.0,
     ) {
     }
 }

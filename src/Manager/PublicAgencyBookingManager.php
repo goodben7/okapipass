@@ -2,6 +2,8 @@
 
 namespace App\Manager;
 
+use App\Domain\Agency\AgencyMinorAccompanimentValidator;
+use App\Domain\Agency\AgencyOfferEffectivePriceResolver;
 use App\Domain\Agency\AgencyPricingService;
 use App\Domain\Agency\AgencyTicketIssuanceService;
 use App\Domain\Agency\AgencyTransportAvailabilityService;
@@ -16,6 +18,7 @@ use App\Entity\AgencyTransport;
 use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
 use App\Exception\UnprocessableEntityException;
+use App\Manager\AgencyBlacklistManager;
 use App\Repository\AgencyBookingRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -32,6 +35,9 @@ final class PublicAgencyBookingManager
         private PublicAgencyBookingTokenGenerator $tokenGenerator,
         private PublicAgencyBookingMapper $mapper,
         private AgencyTransportAvailabilityService $transportAvailability,
+        private AgencyBlacklistManager $blacklist,
+        private AgencyMinorAccompanimentValidator $minorValidator,
+        private AgencyOfferEffectivePriceResolver $effectivePrice,
     ) {
     }
 
@@ -44,13 +50,35 @@ final class PublicAgencyBookingManager
             throw new UnprocessableEntityException('This offer is not available for online booking.');
         }
 
+        $agency = $offer->getAgency();
+        if (null !== $agency) {
+            $this->blacklist->assertNotBlacklisted($agency, $dto->passengerPhone, $dto->passengerId);
+        }
+
         $travelDate = $this->parseTravelDate((string) $dto->travelDate);
         $transport = $offer->getTransport();
         if ($transport instanceof AgencyTransport) {
             $this->transportAvailability->assertAvailableForTravelDate($transport, $travelDate);
         }
+
+        $passengerDob = null;
+        if (null !== $dto->passengerDateOfBirth && '' !== trim($dto->passengerDateOfBirth)) {
+            $passengerDob = \DateTimeImmutable::createFromFormat('Y-m-d', $dto->passengerDateOfBirth);
+            if (false === $passengerDob) {
+                throw new UnprocessableEntityException('Invalid passengerDateOfBirth.');
+            }
+            $passengerDob = $passengerDob->setTime(0, 0);
+        }
+        $this->minorValidator->assertAllowed(
+            $offer,
+            $passengerDob,
+            $dto->escortTicketId,
+            $dto->escortName,
+            $travelDate,
+        );
+
         $quote = $this->pricing->quote($dto->okapiPassRef);
-        $ticketPrice = (int) $offer->getTicketPrice();
+        $ticketPrice = $this->effectivePrice->resolve($offer, $travelDate);
         $passPrice = (int) $quote['passPrice'];
         $quotePayload = [
             'ticketPrice' => $ticketPrice,
@@ -61,6 +89,9 @@ final class PublicAgencyBookingManager
         ];
 
         $holdMinutes = max(1, $offer->getBookingHoldMinutes());
+        if ($travelDate > new \DateTimeImmutable('today')) {
+            $holdMinutes = max($holdMinutes, $offer->getPreorderHoldHours() * 60);
+        }
         $expiresAt = new \DateTimeImmutable(sprintf('+%d minutes', $holdMinutes));
 
         $this->em->beginTransaction();

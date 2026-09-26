@@ -45,6 +45,10 @@ class AgencyTransportManager
         $transport->setPlateNumber($plate);
         $transport->setCapacity($capacity);
         $transport->setStatus($dto->status ?? AgencyTransport::STATUS_ACTIVE);
+        $transport->setNextServiceKm($dto->nextServiceKm);
+        $transport->setNextServiceDate(null !== $dto->nextServiceDate ? new \DateTimeImmutable($dto->nextServiceDate) : null);
+        $transport->setInsuranceExpiresAt(null !== $dto->insuranceExpiresAt ? new \DateTimeImmutable($dto->insuranceExpiresAt) : null);
+        $transport->setTechnicalControlExpiresAt(null !== $dto->technicalControlExpiresAt ? new \DateTimeImmutable($dto->technicalControlExpiresAt) : null);
 
         $this->em->persist($transport);
         $this->em->flush();
@@ -83,6 +87,18 @@ class AgencyTransportManager
 
         if (null !== $dto->status) {
             $transport->setStatus($dto->status);
+        }
+        if (null !== $dto->nextServiceKm) {
+            $transport->setNextServiceKm($dto->nextServiceKm);
+        }
+        if (null !== $dto->nextServiceDate) {
+            $transport->setNextServiceDate('' === $dto->nextServiceDate ? null : new \DateTimeImmutable($dto->nextServiceDate));
+        }
+        if (null !== $dto->insuranceExpiresAt) {
+            $transport->setInsuranceExpiresAt('' === $dto->insuranceExpiresAt ? null : new \DateTimeImmutable($dto->insuranceExpiresAt));
+        }
+        if (null !== $dto->technicalControlExpiresAt) {
+            $transport->setTechnicalControlExpiresAt('' === $dto->technicalControlExpiresAt ? null : new \DateTimeImmutable($dto->technicalControlExpiresAt));
         }
 
         $this->em->flush();

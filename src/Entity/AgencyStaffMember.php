@@ -105,6 +105,9 @@ class AgencyStaffMember implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_staff:get'])]
     private bool $active = true;
 
+    #[ORM\Column(name: 'SM_PIN_HASH', length: 255, nullable: true)]
+    private ?string $pinHash = null;
+
     #[ORM\Column(name: 'SM_CREATED_AT')]
     #[Groups(['agency_staff:get'])]
     private ?\DateTimeImmutable $createdAt = null;
@@ -158,6 +161,18 @@ class AgencyStaffMember implements RessourceInterface, AgencyScopedInterface
     public function setActive(bool $active): static
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function getPinHash(): ?string
+    {
+        return $this->pinHash;
+    }
+
+    public function setPinHash(?string $pinHash): static
+    {
+        $this->pinHash = $pinHash;
 
         return $this;
     }

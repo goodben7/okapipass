@@ -109,6 +109,7 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
 
     public const string CHANNEL_DESK = 'DESK';
     public const string CHANNEL_ONLINE = 'ONLINE';
+    public const string CHANNEL_POS = 'POS';
 
     public const string PAYMENT_STATUS_UNPAID = 'UNPAID';
     public const string PAYMENT_STATUS_PENDING = 'PENDING';
@@ -213,7 +214,7 @@ class AgencyBooking implements RessourceInterface, AgencyScopedInterface
     /** @return list<string> */
     public static function getChannelsAsList(): array
     {
-        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE];
+        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE, self::CHANNEL_POS];
     }
 
     /** @return list<string> */

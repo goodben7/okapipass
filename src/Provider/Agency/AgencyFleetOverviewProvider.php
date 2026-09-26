@@ -28,6 +28,7 @@ final class AgencyFleetOverviewProvider implements ProviderInterface
             recentMaintenanceCases: $data['recentMaintenanceCases'],
             activeRentals: $data['activeRentals'],
             expiringLicenses: $data['expiringLicenses'],
+            expiringDocuments: $data['expiringDocuments'],
         );
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Agency;
 use App\Entity\AgencyBooking;
 use App\Entity\AgencyBookingGroup;
 use App\Entity\AgencyPayment;
@@ -76,5 +77,73 @@ class AgencyPaymentRepository extends ServiceEntityRepository
     public function findLatestForRentalContract(AgencyRentalContract $contract): ?AgencyPayment
     {
         return $this->findOneBy(['rentalContract' => $contract], ['createdAt' => 'DESC']);
+    }
+
+    /**
+     * @return list<AgencyPayment>
+     */
+    public function findPaidForAgencyBetween(
+        Agency $agency,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+    ): array {
+        /** @var list<AgencyPayment> $rows */
+        $rows = $this->createQueryBuilder('p')
+            ->andWhere('p.agency = :agency')
+            ->andWhere('p.status = :paid')
+            ->andWhere('p.paidAt >= :from')
+            ->andWhere('p.paidAt <= :to')
+            ->setParameter('agency', $agency)
+            ->setParameter('paid', AgencyPayment::STATUS_PAID)
+            ->setParameter('from', $from->setTime(0, 0))
+            ->setParameter('to', $to->setTime(23, 59, 59))
+            ->orderBy('p.paidAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
+    }
+
+    /** @return list<AgencyPayment> */
+    public function findPaidPosForAgencyBetween(
+        Agency $agency,
+        \DateTimeImmutable $from,
+        \DateTimeImmutable $to,
+    ): array {
+        /** @var list<AgencyPayment> $rows */
+        $rows = $this->createQueryBuilder('p')
+            ->andWhere('p.agency = :agency')
+            ->andWhere('p.status = :paid')
+            ->andWhere('p.channel = :channel')
+            ->andWhere('p.paidAt >= :from')
+            ->andWhere('p.paidAt <= :to')
+            ->setParameter('agency', $agency)
+            ->setParameter('paid', AgencyPayment::STATUS_PAID)
+            ->setParameter('channel', AgencyPayment::CHANNEL_POS)
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('p.paidAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
+    }
+
+    /** @return list<AgencyPayment> */
+    public function findPendingOlderThan(Agency $agency, \DateTimeImmutable $threshold): array
+    {
+        /** @var list<AgencyPayment> $rows */
+        $rows = $this->createQueryBuilder('p')
+            ->andWhere('p.agency = :agency')
+            ->andWhere('p.status = :pending')
+            ->andWhere('p.createdAt < :threshold')
+            ->setParameter('agency', $agency)
+            ->setParameter('pending', AgencyPayment::STATUS_PENDING)
+            ->setParameter('threshold', $threshold)
+            ->orderBy('p.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
     }
 }

@@ -46,6 +46,18 @@ class CreateAgencyOfferDto
 
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES,
+
+        #[Assert\PositiveOrZero]
+        public ?int $baggageFreeKg = AgencyOffer::DEFAULT_BAGGAGE_FREE_KG,
+
+        #[Assert\PositiveOrZero]
+        public ?int $baggageExcessPricePerKg = 0,
+
+        #[Assert\Positive]
+        public ?int $noShowReleaseMinutes = AgencyOffer::DEFAULT_NOSHOW_RELEASE_MINUTES,
+
+        #[Assert\PositiveOrZero]
+        public ?int $minUnaccompaniedAge = null,
     ) {
     }
 }

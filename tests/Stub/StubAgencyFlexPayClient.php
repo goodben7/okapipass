@@ -19,6 +19,29 @@ final class StubAgencyFlexPayClient implements AgencyFlexPayClientInterface
         );
     }
 
+    public function createMobileMoneyPaymentByReference(
+        string $reference,
+        int $amount,
+        string $currency,
+        string $phone,
+        string $description = 'Wallet topup',
+    ): GatewayResponse {
+        return new GatewayResponse(
+            success: true,
+            transactionId: 'TEST-TX-' . $reference,
+            status: 'PENDING',
+            message: 'Stub topup initiated',
+            raw: [
+                'stub' => true,
+                'reference' => $reference,
+                'amount' => $amount,
+                'currency' => $currency,
+                'phone' => $phone,
+                'description' => $description,
+            ],
+        );
+    }
+
     public function checkStatus(string $transactionId): GatewayResponse
     {
         return new GatewayResponse(

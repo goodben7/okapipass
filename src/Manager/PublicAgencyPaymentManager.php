@@ -21,6 +21,7 @@ use App\Repository\AgencyBookingGroupRepository;
 use App\Repository\AgencyBookingRepository;
 use App\Repository\AgencyPaymentRepository;
 use App\Service\PublicAgency\PublicAgencyPaymentNotifier;
+use App\Service\Traveler\TravelerNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -43,6 +44,10 @@ final class PublicAgencyPaymentManager
         private MessageBusInterface $bus,
         private RequestStack $requestStack,
         private LoggerInterface $logger,
+        private AccountingAgencyManager $accounting,
+        private LoyaltyPointsManager $loyaltyPoints,
+        private TravelerNotificationService $travelerNotifications,
+        private \App\Service\Agency\AgencyWebhookDispatcher $webhooks,
     ) {
     }
 
@@ -763,7 +768,12 @@ final class PublicAgencyPaymentManager
             $ticket = $this->fulfillSuccessfulGroupPayment($payment);
             if (!$hadGroupTickets) {
                 $this->notifier->notifyPaid($payment, $ticket);
+                $this->notifyPaymentPaidSms($ticket);
             }
+
+            $this->accounting->recordFromAgencyPayment($payment);
+            $this->awardLoyaltyForPayment($payment, $ticket);
+            $this->dispatchWebhooks($payment, $ticket);
 
             return;
         }
@@ -771,6 +781,37 @@ final class PublicAgencyPaymentManager
         $ticket = $this->fulfillSuccessfulPayment($payment);
         if (!$hadTicket) {
             $this->notifier->notifyPaid($payment, $ticket);
+            $this->notifyPaymentPaidSms($ticket);
+        }
+
+        $this->accounting->recordFromAgencyPayment($payment);
+        $this->awardLoyaltyForPayment($payment, $ticket);
+        $this->dispatchWebhooks($payment, $ticket);
+    }
+
+    private function dispatchWebhooks(AgencyPayment $payment, AgencyTicket $ticket): void
+    {
+        $agency = $payment->getAgency();
+        if (null === $agency) {
+            return;
+        }
+
+        try {
+            $this->webhooks->dispatch($agency, \App\Entity\AgencyWebhookSubscription::EVENT_PAYMENT_PAID, [
+                'paymentId' => $payment->getId(),
+                'amount' => $payment->getAmount(),
+                'currency' => $payment->getCurrency(),
+                'ticketId' => $ticket->getId(),
+            ]);
+            $this->webhooks->dispatch($agency, \App\Entity\AgencyWebhookSubscription::EVENT_TICKET_ISSUED, [
+                'ticketId' => $ticket->getId(),
+                'reference' => $ticket->getReference(),
+            ]);
+        } catch (\Throwable $e) {
+            $this->logger->warning('agency.webhook.fulfill_hook_failed', [
+                'paymentId' => $payment->getId(),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -779,5 +820,43 @@ final class PublicAgencyPaymentManager
         $group = $payment->getBookingGroup();
 
         return $group instanceof AgencyBookingGroup && $group->getTicket() instanceof AgencyTicket;
+    }
+
+    private function awardLoyaltyForPayment(AgencyPayment $payment, AgencyTicket $ticket): void
+    {
+        try {
+            $this->loyaltyPoints->onAgencyTicketPaid($ticket);
+        } catch (\Throwable $e) {
+            $this->logger->error('loyalty.points.award.exception', [
+                'paymentId' => $payment->getId(),
+                'ticketId' => $ticket->getId(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function notifyPaymentPaidSms(AgencyTicket $ticket): void
+    {
+        $phone = trim((string) $ticket->getPassengerPhone());
+        if ('' === $phone) {
+            return;
+        }
+
+        $reference = (string) ($ticket->getReference() ?? $ticket->getId());
+        if ('' === $reference) {
+            return;
+        }
+
+        try {
+            $this->travelerNotifications->notifyPaymentPaid($phone, $reference);
+        } catch (\Throwable $e) {
+            $this->logger->warning('traveler.sms.payment_paid.failed', [
+                'ticketId' => $ticket->getId(),
+                'phone' => $phone,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 }

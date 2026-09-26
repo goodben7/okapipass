@@ -24,6 +24,7 @@ final class AgencyTicketIssuanceService
         private AgencyQrPayloadBuilder $qrPayloadBuilder,
         private AgencyNotificationTextBuilder $notificationTexts,
         private AgencySmsSenderInterface $smsSender,
+        private AgencyOfferEffectivePriceResolver $effectivePrice,
     ) {
     }
 
@@ -66,7 +67,7 @@ final class AgencyTicketIssuanceService
             $ticket->setPassengerPhone((string) $booking->getPassengerPhone());
             $ticket->setSeatNumber((string) $booking->getSeatNumber());
             $ticket->setTravelDate($booking->getTravelDate());
-            $ticket->setTicketPrice((int) $offer->getTicketPrice());
+            $ticket->setTicketPrice($this->effectivePrice->resolve($offer, $booking->getTravelDate()));
             $ticket->setPassPrice($quote['passPrice']);
             $ticket->setCurrency($offer->getCurrency());
             $ticket->setOkapiPassRef($booking->getOkapiPassRef());
@@ -140,7 +141,7 @@ final class AgencyTicketIssuanceService
                 );
                 $seats[] = (string) $booking->getSeatNumber();
                 $quote = $this->pricing->quote($booking->getOkapiPassRef());
-                $totalTicketPrice += (int) $offer->getTicketPrice();
+                $totalTicketPrice += $this->effectivePrice->resolve($offer, $group->getTravelDate());
                 $totalPassPrice += (int) $quote['passPrice'];
                 $hasExistingPass = $hasExistingPass || (bool) $quote['hasExistingPass'];
                 $manifest[] = [

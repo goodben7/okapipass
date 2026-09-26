@@ -48,6 +48,78 @@ class FlexPayGateway implements PaymentGatewayInterface, AgencyFlexPayClientInte
         return $this->createAgencyMobileMoneyPayment($payment, $phone);
     }
 
+    public function createMobileMoneyPaymentByReference(
+        string $reference,
+        int $amount,
+        string $currency,
+        string $phone,
+        string $description = 'Wallet topup',
+    ): GatewayResponse {
+        $authorization = \str_starts_with($this->token, 'Bearer ')
+            ? $this->token
+            : 'Bearer ' . $this->token;
+
+        $paymentUrl = $this->normalizeUrl($this->paymentUrl);
+        $phone = \preg_replace('/\D+/', '', $phone) ?? '';
+
+        $payload = [
+            'merchant' => $this->merchantId,
+            'type' => '1',
+            'reference' => $reference,
+            'amount' => (string) $amount,
+            'currency' => $currency,
+            'description' => $description,
+            'callbackUrl' => $this->callbackUrl,
+            'phone' => $phone,
+        ];
+
+        $this->logger->info('flexpay.wallet.create_payment.request', [
+            'reference' => $reference,
+            'amount' => $amount,
+            'currency' => $currency,
+        ]);
+
+        try {
+            $response = $this->client->request('POST', $paymentUrl, [
+                'headers' => ['Authorization' => $authorization],
+                'json' => $payload,
+            ]);
+            $statusCode = $response->getStatusCode();
+            $data = $response->toArray(false);
+        } catch (\Throwable $e) {
+            $this->logger->error('flexpay.wallet.create_payment.exception', [
+                'reference' => $reference,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            return new GatewayResponse(
+                success: false,
+                transactionId: null,
+                status: null,
+                message: $e->getMessage(),
+                raw: null,
+            );
+        }
+
+        $code = $data['code'] ?? null;
+        $success = $code === '0' || $code === 0;
+
+        $this->logger->info('flexpay.wallet.create_payment.response', [
+            'reference' => $reference,
+            'httpStatus' => $statusCode,
+            'orderNumber' => $data['orderNumber'] ?? null,
+        ]);
+
+        return new GatewayResponse(
+            success: $success,
+            transactionId: $data['orderNumber'] ?? null,
+            status: $data['status'] ?? $data['message'] ?? null,
+            message: $data['message'] ?? (\is_string($code) ? $code : null),
+            raw: $data,
+        );
+    }
+
     public function buildAgencyCardPaymentForm(AgencyPayment $payment, string $ticketRef): array
     {
         $token = \trim($this->token);

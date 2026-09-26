@@ -9,6 +9,14 @@ interface AgencyFlexPayClientInterface
 {
     public function initiate(AgencyPayment $payment, string $phone): GatewayResponse;
 
+    public function createMobileMoneyPaymentByReference(
+        string $reference,
+        int $amount,
+        string $currency,
+        string $phone,
+        string $description = 'Wallet topup',
+    ): GatewayResponse;
+
     public function checkStatus(string $transactionId): GatewayResponse;
 
     /**

@@ -89,6 +89,7 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     public const string CHANNEL_DESK = 'DESK';
     public const string CHANNEL_ONLINE = 'ONLINE';
     public const string CHANNEL_RENTAL = 'RENTAL';
+    public const string CHANNEL_POS = 'POS';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -206,7 +207,7 @@ class AgencyPayment implements RessourceInterface, AgencyScopedInterface
     /** @return list<string> */
     public static function getChannelsAsList(): array
     {
-        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE, self::CHANNEL_RENTAL];
+        return [self::CHANNEL_DESK, self::CHANNEL_ONLINE, self::CHANNEL_RENTAL, self::CHANNEL_POS];
     }
 
     public function getId(): ?string

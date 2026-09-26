@@ -155,6 +155,21 @@ class Agency implements RessourceInterface
     #[Groups(['agency:get'])]
     private ?User $createdBy = null;
 
+    #[ORM\Column(name: 'AG_CANCEL_WINDOW_HOURS', options: ['default' => 2])]
+    #[Assert\Positive]
+    #[Groups(['agency:get'])]
+    private int $cancelWindowHours = 2;
+
+    #[ORM\Column(name: 'AG_REFUND_FEE_PERCENT', options: ['default' => 0])]
+    #[Assert\PositiveOrZero]
+    #[Groups(['agency:get'])]
+    private int $refundFeePercent = 0;
+
+    #[ORM\Column(name: 'AG_RESCHEDULE_FEE_FLAT', options: ['default' => 0])]
+    #[Assert\PositiveOrZero]
+    #[Groups(['agency:get'])]
+    private int $rescheduleFeeFlat = 0;
+
     public static function getStatusesAsList(): array
     {
         return [
@@ -352,6 +367,42 @@ class Agency implements RessourceInterface
     public function setUserId(string|null $userId): static
     {
         $this->userId = $userId;
+
+        return $this;
+    }
+
+    public function getCancelWindowHours(): int
+    {
+        return $this->cancelWindowHours;
+    }
+
+    public function setCancelWindowHours(int $cancelWindowHours): static
+    {
+        $this->cancelWindowHours = $cancelWindowHours;
+
+        return $this;
+    }
+
+    public function getRefundFeePercent(): int
+    {
+        return $this->refundFeePercent;
+    }
+
+    public function setRefundFeePercent(int $refundFeePercent): static
+    {
+        $this->refundFeePercent = $refundFeePercent;
+
+        return $this;
+    }
+
+    public function getRescheduleFeeFlat(): int
+    {
+        return $this->rescheduleFeeFlat;
+    }
+
+    public function setRescheduleFeeFlat(int $rescheduleFeeFlat): static
+    {
+        $this->rescheduleFeeFlat = $rescheduleFeeFlat;
 
         return $this;
     }

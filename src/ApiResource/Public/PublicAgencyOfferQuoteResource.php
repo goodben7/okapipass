@@ -28,6 +28,9 @@ final class PublicAgencyOfferQuoteResource
         public string $currency,
         public bool $hasExistingPass,
         public ?string $okapiPassRef = null,
+        public int $discountAmount = 0,
+        public ?string $promoCode = null,
+        public ?int $finalTicketPrice = null,
     ) {
     }
 }

@@ -18,6 +18,13 @@ parameters:
     flexpay_agency_card_cancel_url_default: 'https://okapi-pass-v2.vercel.app/agency/booking/cancelled?token={ref}'
     flexpay_agency_card_decline_url_default: 'https://okapi-pass-v2.vercel.app/agency/booking/failed?token={ref}&reason={reason}'
     agency_pass_validate_strict_default: '0'
+    dream_digital_base_url_default: ''
+    dream_digital_api_id_default: ''
+    dream_digital_api_password_default: ''
+    dream_digital_sms_enabled_default: '0'
+    dream_digital_sms_type_default: 'T'
+    dream_digital_encoding_default: 'T'
+    dream_digital_sender_id_default: 'OKAPIPASS'
 
 services:
     # default configuration for services in *this* file
@@ -51,7 +58,20 @@ services:
         arguments:
             $strict: '%env(bool:default:agency_pass_validate_strict_default:AGENCY_PASS_VALIDATE_STRICT)%'
 
-    App\Contract\AgencySmsSenderInterface: '@App\Service\Agency\LoggingAgencySmsSender'
+    App\Service\Agency\DreamDigitalSmsSender:
+        arguments:
+            $baseUrl: '%env(default:dream_digital_base_url_default:DREAM_DIGITAL_BASE_URL)%'
+            $apiId: '%env(default:dream_digital_api_id_default:DREAM_DIGITAL_API_ID)%'
+            $apiPassword: '%env(default:dream_digital_api_password_default:DREAM_DIGITAL_API_PASSWORD)%'
+            $senderId: '%env(default:dream_digital_sender_id_default:DREAM_DIGITAL_SENDER_ID)%'
+            $smsType: '%env(default:dream_digital_sms_type_default:DREAM_DIGITAL_SMS_TYPE)%'
+            $encoding: '%env(default:dream_digital_encoding_default:DREAM_DIGITAL_ENCODING)%'
+
+    App\Service\Agency\AgencySmsRouter:
+        arguments:
+            $enabled: '%env(bool:default:dream_digital_sms_enabled_default:DREAM_DIGITAL_SMS_ENABLED)%'
+
+    App\Contract\AgencySmsSenderInterface: '@App\Service\Agency\AgencySmsRouter'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

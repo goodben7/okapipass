@@ -8,6 +8,7 @@ use App\Entity\AgencyEmbarkation;
 use App\Entity\AgencyMaintenanceCase;
 use App\Entity\AgencyRentalContract;
 use App\Entity\AgencyTransport;
+use App\Repository\AgencyDriverDocumentRepository;
 use App\Repository\AgencyDriverRepository;
 use App\Repository\AgencyEmbarkationRepository;
 use App\Repository\AgencyMaintenanceCaseRepository;
@@ -22,6 +23,7 @@ final class AgencyFleetOverviewService
         private AgencyMaintenanceCaseRepository $maintenanceCases,
         private AgencyRentalContractRepository $rentals,
         private AgencyEmbarkationRepository $embarkations,
+        private AgencyDriverDocumentRepository $driverDocuments,
     ) {
     }
 
@@ -37,11 +39,15 @@ final class AgencyFleetOverviewService
      *         driversWithExpiringLicense: int,
      *         openMaintenanceCases: int,
      *         activeRentals: int,
-     *         maintenanceCostThisMonth: int
+     *         maintenanceCostThisMonth: int,
+     *         dueService: int,
+     *         expiringInsurance: int,
+     *         expiringDriverDocuments: int
      *     },
      *     recentMaintenanceCases: list<array<string, mixed>>,
      *     activeRentals: list<array<string, mixed>>,
-     *     expiringLicenses: list<array<string, mixed>>
+     *     expiringLicenses: list<array<string, mixed>>,
+     *     expiringDocuments: list<array<string, mixed>>
      * }
      */
     public function buildOverview(Agency $agency): array
@@ -49,6 +55,19 @@ final class AgencyFleetOverviewService
         $today = new \DateTimeImmutable('today');
         $monthStart = $today->modify('first day of this month')->setTime(0, 0);
         $licenseAlertUntil = $today->modify('+30 days');
+
+        $dueService = 0;
+        $expiringInsurance = 0;
+        foreach ($this->transports->findBy(['agency' => $agency]) as $transport) {
+            $nextDate = $transport->getNextServiceDate();
+            if (null !== $nextDate && $nextDate <= $licenseAlertUntil) {
+                ++$dueService;
+            }
+            $ins = $transport->getInsuranceExpiresAt();
+            if (null !== $ins && $ins <= $licenseAlertUntil) {
+                ++$expiringInsurance;
+            }
+        }
 
         return [
             'kpis' => [
@@ -62,6 +81,9 @@ final class AgencyFleetOverviewService
                 'openMaintenanceCases' => $this->maintenanceCases->countBlockingByAgency($agency),
                 'activeRentals' => $this->rentals->countBlockingByAgency($agency),
                 'maintenanceCostThisMonth' => $this->maintenanceCases->sumCompletedCostSince($agency, $monthStart),
+                'dueService' => $dueService,
+                'expiringInsurance' => $expiringInsurance,
+                'expiringDriverDocuments' => $this->driverDocuments->countExpiring($agency, $today, $licenseAlertUntil),
             ],
             'recentMaintenanceCases' => array_map(
                 fn (AgencyMaintenanceCase $case): array => $this->serializeMaintenanceCase($case),
@@ -74,6 +96,17 @@ final class AgencyFleetOverviewService
             'expiringLicenses' => array_map(
                 fn (AgencyDriver $driver): array => $this->serializeDriverLicenseAlert($driver),
                 $this->drivers->findExpiringLicenses($agency, $today, $licenseAlertUntil, 10),
+            ),
+            'expiringDocuments' => array_map(
+                fn ($doc): array => [
+                    'id' => $doc->getId(),
+                    'driverId' => $doc->getDriver()?->getId(),
+                    'driverName' => $doc->getDriver()?->getFullName(),
+                    'type' => $doc->getType(),
+                    'label' => $doc->getLabel(),
+                    'expiresAt' => $doc->getExpiresAt()?->format('Y-m-d'),
+                ],
+                $this->driverDocuments->findExpiring($agency, $today, $licenseAlertUntil, 10),
             ),
         ];
     }

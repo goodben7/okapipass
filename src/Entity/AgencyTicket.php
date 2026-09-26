@@ -19,13 +19,20 @@ use App\Doctrine\IdGenerator;
 use App\Domain\Agency\AgencyScopedInterface;
 use App\Dto\Agency\AgencyTicketCreateResult;
 use App\Dto\Agency\CreateAgencyTicketDto;
+use App\Dto\Agency\RecordAgencyTicketBaggageDto;
+use App\Dto\Agency\RecordBaggageResult;
+use App\Dto\Agency\CreateAgencyTicketCancelRequestDto;
+use App\Dto\Agency\RescheduleAgencyTicketDto;
 use App\Dto\Agency\UpdateAgencyTicketSeatDto;
 use App\Dto\Agency\UpdateAgencyTicketStatusDto;
 use App\Model\RessourceInterface;
 use App\Repository\AgencyTicketRepository;
 use App\State\Agency\AgencyScopedItemProvider;
+use App\State\Agency\CreateAgencyTicketCancelRequestProcessor;
 use App\State\Agency\CreateAgencyTicketProcessor;
+use App\State\Agency\RecordAgencyTicketBaggageProcessor;
 use App\State\Agency\RefundAgencyTicketProcessor;
+use App\State\Agency\RescheduleAgencyTicketProcessor;
 use App\State\Agency\UpdateAgencyTicketSeatProcessor;
 use App\State\Agency\UpdateAgencyTicketStatusProcessor;
 use Doctrine\DBAL\Types\Types;
@@ -83,6 +90,34 @@ use Symfony\Component\Validator\Constraints as Assert;
             processor: RefundAgencyTicketProcessor::class,
             status: 200,
         ),
+        new Post(
+            uriTemplate: '/agency/tickets/{id}/baggage',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: RecordAgencyTicketBaggageDto::class,
+            output: RecordBaggageResult::class,
+            normalizationContext: ['groups' => ['agency_baggage_excess:get', 'agency_ticket:get']],
+            processor: RecordAgencyTicketBaggageProcessor::class,
+            read: false,
+            status: 201,
+        ),
+        new Post(
+            uriTemplate: '/agency/tickets/{id}/cancel-requests',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: CreateAgencyTicketCancelRequestDto::class,
+            output: \App\Entity\AgencyTicketCancelRequest::class,
+            normalizationContext: ['groups' => ['agency_ticket_cancel_request:get']],
+            processor: CreateAgencyTicketCancelRequestProcessor::class,
+            read: false,
+            status: 201,
+        ),
+        new Post(
+            uriTemplate: '/agency/tickets/{id}/reschedule',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: RescheduleAgencyTicketDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: RescheduleAgencyTicketProcessor::class,
+            status: 200,
+        ),
     ]
 )]
 #[ApiFilter(SearchFilter::class, properties: [
@@ -106,6 +141,7 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     public const string STATUS_BOARDED = 'BOARDED';
     public const string STATUS_CANCELLED = 'CANCELLED';
     public const string STATUS_USED = 'USED';
+    public const string STATUS_NO_SHOW = 'NO_SHOW';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -174,9 +210,26 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_ticket:get'])]
     private int $passPrice = 0;
 
+    #[ORM\Column(name: 'AK_DISCOUNT_AMOUNT', options: ['default' => 0])]
+    #[Groups(['agency_ticket:get'])]
+    private int $discountAmount = 0;
+
+    #[ORM\Column(name: 'AK_PROMO_CODE', length: 40, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $promoCode = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AK_LOYALTY_RULE', nullable: true, referencedColumnName: 'LR_ID')]
+    #[Groups(['agency_ticket:get'])]
+    private ?LoyaltyRule $loyaltyRule = null;
+
     #[ORM\Column(name: 'AK_CURRENCY', length: 3)]
     #[Groups(['agency_ticket:get'])]
     private string $currency = Agency::DEFAULT_CURRENCY;
+
+    #[ORM\Column(name: 'AK_BAGGAGE_KG', nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?int $baggageKg = null;
 
     #[ORM\Column(name: 'AK_STATUS', length: 12)]
     #[Assert\Choice(callback: [self::class, 'getStatusesAsList'])]
@@ -197,6 +250,55 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     #[ORM\Column(name: 'AK_QR_PAYLOAD', type: Types::TEXT, nullable: true)]
     #[Groups(['agency_ticket:get'])]
     private ?string $qrPayload = null;
+
+    #[ORM\Column(name: 'AK_PASSENGER_DOB', type: Types::DATE_IMMUTABLE, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?\DateTimeImmutable $passengerDateOfBirth = null;
+
+    #[ORM\Column(name: 'AK_ESCORT_TICKET_ID', length: 16, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $escortTicketId = null;
+
+    #[ORM\Column(name: 'AK_ESCORT_NAME', length: 120, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $escortName = null;
+
+    #[ORM\Column(name: 'AK_QR_TOKEN', length: 64, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $qrToken = null;
+
+    #[ORM\Column(name: 'AK_QR_TOKEN_EXPIRES_AT', nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?\DateTimeImmutable $qrTokenExpiresAt = null;
+
+    #[ORM\Column(name: 'AK_QR_TOKEN_USED_AT', nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?\DateTimeImmutable $qrTokenUsedAt = null;
+
+    #[ORM\Column(name: 'AK_INSURANCE_OPTED', options: ['default' => false])]
+    #[Groups(['agency_ticket:get'])]
+    private bool $insuranceOpted = false;
+
+    #[ORM\Column(name: 'AK_SHARE_TOKEN', length: 64, nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?string $shareToken = null;
+
+    #[ORM\Column(name: 'AK_SHARE_TOKEN_EXPIRES_AT', nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?\DateTimeImmutable $shareTokenExpiresAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'AK_TRAVELER_PASS', nullable: true, referencedColumnName: 'TP_ID')]
+    #[Groups(['agency_ticket:get'])]
+    private ?TravelerPass $travelerPass = null;
+
+    #[ORM\Column(name: 'AK_INSURANCE_FEE', options: ['default' => 0])]
+    #[Groups(['agency_ticket:get'])]
+    private int $insuranceFee = 0;
+
+    #[ORM\Column(name: 'AK_RESCHEDULE_FEE', options: ['default' => 0])]
+    #[Groups(['agency_ticket:get'])]
+    private int $rescheduleFee = 0;
 
     #[ORM\ManyToOne(inversedBy: 'tickets')]
     #[ORM\JoinColumn(name: 'AK_EMBARKATION', nullable: true, referencedColumnName: 'AE_ID')]
@@ -223,6 +325,7 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
             self::STATUS_BOARDED,
             self::STATUS_CANCELLED,
             self::STATUS_USED,
+            self::STATUS_NO_SHOW,
         ];
     }
 
@@ -417,6 +520,43 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
         return $this;
     }
 
+    public function getDiscountAmount(): int
+    {
+        return $this->discountAmount;
+    }
+
+    public function setDiscountAmount(int $discountAmount): static
+    {
+        $this->discountAmount = $discountAmount;
+
+        return $this;
+    }
+
+    public function getPromoCode(): ?string
+    {
+        return $this->promoCode;
+    }
+
+    public function setPromoCode(?string $promoCode): static
+    {
+        $code = null !== $promoCode ? strtoupper(trim($promoCode)) : null;
+        $this->promoCode = '' === $code ? null : $code;
+
+        return $this;
+    }
+
+    public function getLoyaltyRule(): ?LoyaltyRule
+    {
+        return $this->loyaltyRule;
+    }
+
+    public function setLoyaltyRule(?LoyaltyRule $loyaltyRule): static
+    {
+        $this->loyaltyRule = $loyaltyRule;
+
+        return $this;
+    }
+
     public function getCurrency(): string
     {
         return $this->currency;
@@ -497,6 +637,150 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
         return $this;
     }
 
+    public function getPassengerDateOfBirth(): ?\DateTimeImmutable
+    {
+        return $this->passengerDateOfBirth;
+    }
+
+    public function setPassengerDateOfBirth(?\DateTimeImmutable $passengerDateOfBirth): static
+    {
+        $this->passengerDateOfBirth = $passengerDateOfBirth;
+
+        return $this;
+    }
+
+    public function getEscortTicketId(): ?string
+    {
+        return $this->escortTicketId;
+    }
+
+    public function setEscortTicketId(?string $escortTicketId): static
+    {
+        $this->escortTicketId = $escortTicketId;
+
+        return $this;
+    }
+
+    public function getEscortName(): ?string
+    {
+        return $this->escortName;
+    }
+
+    public function setEscortName(?string $escortName): static
+    {
+        $this->escortName = $escortName;
+
+        return $this;
+    }
+
+    public function getQrToken(): ?string
+    {
+        return $this->qrToken;
+    }
+
+    public function setQrToken(?string $qrToken): static
+    {
+        $this->qrToken = $qrToken;
+
+        return $this;
+    }
+
+    public function getQrTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->qrTokenExpiresAt;
+    }
+
+    public function setQrTokenExpiresAt(?\DateTimeImmutable $qrTokenExpiresAt): static
+    {
+        $this->qrTokenExpiresAt = $qrTokenExpiresAt;
+
+        return $this;
+    }
+
+    public function getQrTokenUsedAt(): ?\DateTimeImmutable
+    {
+        return $this->qrTokenUsedAt;
+    }
+
+    public function setQrTokenUsedAt(?\DateTimeImmutable $qrTokenUsedAt): static
+    {
+        $this->qrTokenUsedAt = $qrTokenUsedAt;
+
+        return $this;
+    }
+
+    public function isInsuranceOpted(): bool
+    {
+        return $this->insuranceOpted;
+    }
+
+    public function setInsuranceOpted(bool $insuranceOpted): static
+    {
+        $this->insuranceOpted = $insuranceOpted;
+
+        return $this;
+    }
+
+    public function getInsuranceFee(): int
+    {
+        return $this->insuranceFee;
+    }
+
+    public function setInsuranceFee(int $insuranceFee): static
+    {
+        $this->insuranceFee = $insuranceFee;
+
+        return $this;
+    }
+
+    public function getShareToken(): ?string
+    {
+        return $this->shareToken;
+    }
+
+    public function setShareToken(?string $shareToken): static
+    {
+        $this->shareToken = $shareToken;
+
+        return $this;
+    }
+
+    public function getShareTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->shareTokenExpiresAt;
+    }
+
+    public function setShareTokenExpiresAt(?\DateTimeImmutable $shareTokenExpiresAt): static
+    {
+        $this->shareTokenExpiresAt = $shareTokenExpiresAt;
+
+        return $this;
+    }
+
+    public function getTravelerPass(): ?TravelerPass
+    {
+        return $this->travelerPass;
+    }
+
+    public function setTravelerPass(?TravelerPass $travelerPass): static
+    {
+        $this->travelerPass = $travelerPass;
+
+        return $this;
+    }
+
+    public function getRescheduleFee(): int
+    {
+        return $this->rescheduleFee;
+    }
+
+    public function setRescheduleFee(int $rescheduleFee): static
+    {
+        $this->rescheduleFee = $rescheduleFee;
+
+        return $this;
+    }
+
     public function getEmbarkation(): ?AgencyEmbarkation
     {
         return $this->embarkation;
@@ -529,6 +813,28 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     public function isCancelled(): bool
     {
         return self::STATUS_CANCELLED === $this->status;
+    }
+
+    public function isNoShow(): bool
+    {
+        return self::STATUS_NO_SHOW === $this->status;
+    }
+
+    public function freesSeat(): bool
+    {
+        return self::STATUS_CANCELLED === $this->status || self::STATUS_NO_SHOW === $this->status;
+    }
+
+    public function getBaggageKg(): ?int
+    {
+        return $this->baggageKg;
+    }
+
+    public function setBaggageKg(?int $baggageKg): static
+    {
+        $this->baggageKg = $baggageKg;
+
+        return $this;
     }
 
     #[ORM\PrePersist]
