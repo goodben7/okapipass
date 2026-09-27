@@ -44,6 +44,9 @@ class CreateAgencyOfferDto
 
         public ?bool $onlineSales = false,
 
+        #[Assert\Choice(callback: [AgencyOffer::class, 'getServiceTypesAsList'])]
+        public ?string $serviceType = AgencyOffer::SERVICE_INTERCITY,
+
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES,
 

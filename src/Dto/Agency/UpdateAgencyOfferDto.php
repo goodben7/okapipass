@@ -35,6 +35,9 @@ class UpdateAgencyOfferDto
 
         public ?bool $onlineSales = null,
 
+        #[Assert\Choice(callback: [AgencyOffer::class, 'getServiceTypesAsList'])]
+        public ?string $serviceType = null,
+
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = null,
 

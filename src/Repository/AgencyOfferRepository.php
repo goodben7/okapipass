@@ -67,10 +67,12 @@ class AgencyOfferRepository extends ServiceEntityRepository
             ->innerJoin('o.transport', 't')
             ->andWhere('o.active = :active')
             ->andWhere('o.onlineSales = :onlineSales')
+            ->andWhere('o.serviceType = :serviceType')
             ->andWhere('a.status = :agencyStatus')
             ->andWhere('t.status = :transportStatus')
             ->setParameter('active', true)
             ->setParameter('onlineSales', true)
+            ->setParameter('serviceType', AgencyOffer::SERVICE_INTERCITY)
             ->setParameter('agencyStatus', Agency::STATUS_ACTIVE)
             ->setParameter('transportStatus', AgencyTransport::STATUS_ACTIVE)
             ->orderBy('o.departureTime', 'ASC');
@@ -118,10 +120,12 @@ class AgencyOfferRepository extends ServiceEntityRepository
                 ->innerJoin('o.transport', 't')
                 ->andWhere('o.active = :active')
                 ->andWhere('o.onlineSales = :onlineSales')
+                ->andWhere('o.serviceType = :serviceType')
                 ->andWhere('a.status = :agencyStatus')
                 ->andWhere('t.status = :transportStatus')
                 ->setParameter('active', true)
                 ->setParameter('onlineSales', true)
+                ->setParameter('serviceType', AgencyOffer::SERVICE_INTERCITY)
                 ->setParameter('agencyStatus', Agency::STATUS_ACTIVE)
                 ->setParameter('transportStatus', AgencyTransport::STATUS_ACTIVE),
             $origin,

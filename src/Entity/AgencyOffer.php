@@ -73,12 +73,16 @@ use Symfony\Component\Validator\Constraints as Assert;
     'origin' => 'ipartial',
     'destination' => 'ipartial',
     'transport.id' => 'exact',
+    'serviceType' => 'exact',
 ])]
 #[ApiFilter(BooleanFilter::class, properties: ['active', 'onlineSales'])]
 #[ApiFilter(OrderFilter::class, properties: ['createdAt', 'label', 'ticketPrice', 'departureTime'])]
 class AgencyOffer implements RessourceInterface, AgencyScopedInterface
 {
     public const string ID_PREFIX = 'AO';
+
+    public const string SERVICE_INTERCITY = 'INTERCITY';
+    public const string SERVICE_SCHOOL = 'SCHOOL';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -143,6 +147,11 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     #[ORM\Column(name: 'AO_ONLINE_SALES')]
     #[Groups(['agency_offer:get'])]
     private bool $onlineSales = false;
+
+    #[ORM\Column(name: 'AO_SERVICE_TYPE', length: 16, options: ['default' => self::SERVICE_INTERCITY])]
+    #[Assert\Choice(callback: [self::class, 'getServiceTypesAsList'])]
+    #[Groups(['agency_offer:get'])]
+    private string $serviceType = self::SERVICE_INTERCITY;
 
     /** Minutes a seat is held after an online booking before auto-cancel. */
     #[ORM\Column(name: 'AO_BOOKING_HOLD_MINUTES')]
@@ -328,6 +337,32 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
         $this->onlineSales = $onlineSales;
 
         return $this;
+    }
+
+    /** @return list<string> */
+    public static function getServiceTypesAsList(): array
+    {
+        return [
+            self::SERVICE_INTERCITY,
+            self::SERVICE_SCHOOL,
+        ];
+    }
+
+    public function getServiceType(): string
+    {
+        return $this->serviceType;
+    }
+
+    public function setServiceType(string $serviceType): static
+    {
+        $this->serviceType = $serviceType;
+
+        return $this;
+    }
+
+    public function isSchoolService(): bool
+    {
+        return self::SERVICE_SCHOOL === $this->serviceType;
     }
 
     public function getBookingHoldMinutes(): int

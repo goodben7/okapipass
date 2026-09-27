@@ -80,6 +80,7 @@ final class AgencyStaffRole
                 AgencyPermission::STAFF_WRITE,
                 AgencyPermission::ACCOUNTING_READ,
                 AgencyPermission::FLEET_READ,
+                AgencyPermission::SCHOOL_WRITE,
             ],
             self::READONLY => [],
             self::DRIVER => [
@@ -98,6 +99,7 @@ final class AgencyStaffRole
                 AgencyPermission::DRIVER_WRITE,
                 AgencyPermission::MAINTENANCE_WRITE,
                 AgencyPermission::RENTAL_WRITE,
+                AgencyPermission::SCHOOL_WRITE,
             ],
             default => AgencyPermission::defaultsForPartner(),
         };

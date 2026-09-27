@@ -61,8 +61,13 @@ class AgencyOfferManager
         $offer->setCurrency($currency);
         $offer->setDepartureTime((string) $dto->departureTime);
         $offer->setDurationMinutes((int) $dto->durationMinutes);
+        $serviceType = strtoupper((string) ($dto->serviceType ?? AgencyOffer::SERVICE_INTERCITY));
         $offer->setActive($dto->active ?? true);
-        $offer->setOnlineSales($dto->onlineSales ?? false);
+        $offer->setServiceType($serviceType);
+        // School offers must never be sold online / appear on the public catalogue.
+        $offer->setOnlineSales(
+            AgencyOffer::SERVICE_SCHOOL === $serviceType ? false : ($dto->onlineSales ?? false)
+        );
         $offer->setBookingHoldMinutes($dto->bookingHoldMinutes ?? AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES);
         $offer->setBaggageFreeKg($dto->baggageFreeKg ?? AgencyOffer::DEFAULT_BAGGAGE_FREE_KG);
         $offer->setBaggageExcessPricePerKg($dto->baggageExcessPricePerKg ?? 0);
@@ -126,8 +131,14 @@ class AgencyOfferManager
         if (null !== $dto->active) {
             $offer->setActive($dto->active);
         }
+        if (null !== $dto->serviceType) {
+            $offer->setServiceType(strtoupper($dto->serviceType));
+        }
         if (null !== $dto->onlineSales) {
             $offer->setOnlineSales($dto->onlineSales);
+        }
+        if ($offer->isSchoolService()) {
+            $offer->setOnlineSales(false);
         }
         if (null !== $dto->bookingHoldMinutes) {
             $offer->setBookingHoldMinutes($dto->bookingHoldMinutes);
