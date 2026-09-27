@@ -2,14 +2,13 @@
 
 namespace App\Domain\Agency;
 
-use App\Entity\AgencyBooking;
 use App\Entity\AgencyOffer;
-use App\Entity\AgencyTicket;
+use App\Entity\AgencyTransport;
 use App\Exception\ConflictException;
 use App\Exception\UnprocessableEntityException;
 use App\Repository\AgencyBookingRepository;
+use App\Repository\AgencyEmbarkationRepository;
 use App\Repository\AgencyTicketRepository;
-
 
 final class SeatOccupancyService
 {
@@ -17,6 +16,7 @@ final class SeatOccupancyService
         private SeatLayoutBuilder $layoutBuilder,
         private AgencyBookingRepository $bookings,
         private AgencyTicketRepository $tickets,
+        private AgencyEmbarkationRepository $embarkations,
     ) {
     }
 
@@ -28,17 +28,55 @@ final class SeatOccupancyService
      *     availableCount: int,
      *     isFull: bool,
      *     layout: array,
-     *     occupiedSeats: list<string>
+     *     occupiedSeats: list<string>,
+     *     vehicleUnassigned: bool,
+     *     transportId: ?string,
+     *     transportLabel: ?string,
+     *     plateNumber: ?string,
+     *     embarkationId: ?string,
+     *     soldCount: int,
+     *     seatMode: string
      * }
      */
     public function availability(AgencyOffer $offer, \DateTimeImmutable $travelDate, ?string $excludeBookingId = null): array
     {
-        $transport = $offer->getTransport();
+        $resolved = $this->resolveTransportForDate($offer, $travelDate);
+        $transport = $resolved['transport'];
         if (null === $transport) {
             throw new UnprocessableEntityException('Offer has no transport.');
         }
 
-        $layout = $this->layoutBuilder->build((string) $transport->getKind(), (int) $transport->getCapacity());
+        $capacity = (int) $transport->getCapacity();
+        $sold = $this->soldCount($offer, $travelDate, $excludeBookingId);
+
+        if ($offer->isCapacityOnly()) {
+            $availableCount = max(0, $capacity - $sold);
+
+            return [
+                'offerId' => (string) $offer->getId(),
+                'travelDate' => $travelDate->format('Y-m-d'),
+                'capacity' => $capacity,
+                'availableCount' => $availableCount,
+                'isFull' => 0 === $availableCount,
+                'layout' => [
+                    'kind' => 'CAPACITY_ONLY',
+                    'rows' => [],
+                    'columns' => [],
+                    'aisleAfter' => null,
+                    'seatIds' => [],
+                ],
+                'occupiedSeats' => [],
+                'vehicleUnassigned' => $resolved['vehicleUnassigned'],
+                'transportId' => $transport->getId(),
+                'transportLabel' => $transport->getLabel(),
+                'plateNumber' => $transport->getPlateNumber(),
+                'embarkationId' => $resolved['embarkationId'],
+                'soldCount' => $sold,
+                'seatMode' => $offer->getSeatMode(),
+            ];
+        }
+
+        $layout = $this->layoutBuilder->build((string) $transport->getKind(), $capacity);
         $occupied = $this->occupiedSeats($offer, $travelDate, $excludeBookingId);
         $availableCount = max(0, $layout['capacity'] - \count($occupied));
 
@@ -56,10 +94,107 @@ final class SeatOccupancyService
                 'seatIds' => $layout['seatIds'],
             ],
             'occupiedSeats' => array_values($occupied),
+            'vehicleUnassigned' => $resolved['vehicleUnassigned'],
+            'transportId' => $transport->getId(),
+            'transportLabel' => $transport->getLabel(),
+            'plateNumber' => $transport->getPlateNumber(),
+            'embarkationId' => $resolved['embarkationId'],
+            'soldCount' => $sold,
+            'seatMode' => $offer->getSeatMode(),
         ];
     }
 
     /**
+     * Prefer course (embarkation) transport; fall back to offer.transport when unassigned.
+     *
+     * @return array{transport: ?AgencyTransport, vehicleUnassigned: bool, embarkationId: ?string}
+     */
+    public function resolveTransportForDate(AgencyOffer $offer, \DateTimeImmutable $travelDate): array
+    {
+        $embarkation = $this->embarkations->findOneForOfferOnDate($offer, $travelDate);
+        if (null !== $embarkation && null !== $embarkation->getTransport()) {
+            return [
+                'transport' => $embarkation->getTransport(),
+                'vehicleUnassigned' => false,
+                'embarkationId' => $embarkation->getId(),
+            ];
+        }
+
+        return [
+            'transport' => $offer->getTransport(),
+            'vehicleUnassigned' => true,
+            'embarkationId' => $embarkation?->getId(),
+        ];
+    }
+
+    /**
+     * Active bookings + manual tickets (no booking) for offer+date — row count, not unique seats.
+     */
+    public function soldCount(
+        AgencyOffer $offer,
+        \DateTimeImmutable $travelDate,
+        ?string $excludeBookingId = null,
+    ): int {
+        return $this->bookings->countActiveForOfferDate($offer, $travelDate, $excludeBookingId)
+            + $this->tickets->countActiveManualForOfferDate($offer, $travelDate);
+    }
+
+    public function assertCapacityAvailable(
+        AgencyOffer $offer,
+        \DateTimeImmutable $travelDate,
+        int $quantity = 1,
+        ?string $excludeBookingId = null,
+    ): void {
+        $resolved = $this->resolveTransportForDate($offer, $travelDate);
+        $transport = $resolved['transport'];
+        if (null === $transport) {
+            throw new UnprocessableEntityException('Offer has no transport.');
+        }
+
+        $sold = $this->soldCount($offer, $travelDate, $excludeBookingId);
+        $capacity = (int) $transport->getCapacity();
+        if ($sold + $quantity > $capacity) {
+            throw new ConflictException(sprintf(
+                'CAPACITY_FULL: No places left (%d/%d sold).',
+                $sold,
+                $capacity,
+            ));
+        }
+    }
+
+    /**
+     * Resolve seat for sale: CAPACITY_ONLY skips layout validation; ASSIGNED_SEAT requires a seat map pick.
+     */
+    public function resolveSeatForSale(
+        AgencyOffer $offer,
+        \DateTimeImmutable $travelDate,
+        ?string $seatNumber,
+        ?string $excludeBookingId = null,
+        ?string $excludeSeatNumber = null,
+    ): string {
+        if ($offer->isCapacityOnly()) {
+            $this->assertCapacityAvailable($offer, $travelDate, 1, $excludeBookingId);
+            $seat = $this->normalizeSeat($seatNumber);
+
+            return '' !== $seat ? $seat : 'GA';
+        }
+
+        if (AgencyOffer::SEAT_NONE === $offer->getSeatMode()) {
+            throw new UnprocessableEntityException('This offer does not support seat sales.');
+        }
+
+        return $this->assertSeatSelectable(
+            $offer,
+            $travelDate,
+            $seatNumber,
+            $excludeBookingId,
+            $excludeSeatNumber,
+        );
+    }
+
+    /**
+     * Unique occupied seat labels — INTERCITY seat map only.
+     *
      * @return list<string>
      */
     public function occupiedSeats(AgencyOffer $offer, \DateTimeImmutable $travelDate, ?string $excludeBookingId = null): array
@@ -97,7 +232,8 @@ final class SeatOccupancyService
             throw new UnprocessableEntityException('Sélectionnez un siège sur le plan du bus.');
         }
 
-        $transport = $offer->getTransport();
+        $resolved = $this->resolveTransportForDate($offer, $travelDate);
+        $transport = $resolved['transport'];
         if (null === $transport) {
             throw new UnprocessableEntityException('Offer has no transport.');
         }
@@ -138,6 +274,17 @@ final class SeatOccupancyService
         array $seatNumbers,
         ?string $excludeBookingId = null,
     ): array {
+        if ($offer->isCapacityOnly()) {
+            $this->assertCapacityAvailable($offer, $travelDate, max(1, \count($seatNumbers)), $excludeBookingId);
+            $resolved = [];
+            foreach ($seatNumbers as $i => $seatNumber) {
+                $seat = $this->normalizeSeat($seatNumber);
+                $resolved[] = '' !== $seat ? $seat : sprintf('GA-%d', $i + 1);
+            }
+
+            return $resolved;
+        }
+
         if ([] === $seatNumbers) {
             throw new UnprocessableEntityException('Sélectionnez au moins un siège.');
         }
@@ -156,7 +303,8 @@ final class SeatOccupancyService
             $normalized[] = $seat;
         }
 
-        $transport = $offer->getTransport();
+        $resolved = $this->resolveTransportForDate($offer, $travelDate);
+        $transport = $resolved['transport'];
         if (null === $transport) {
             throw new UnprocessableEntityException('Offer has no transport.');
         }

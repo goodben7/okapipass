@@ -7,6 +7,7 @@ use App\Entity\AccountingJournal;
 use App\Entity\Agency;
 use App\Entity\AgencyPayment;
 use App\Entity\CashHandover;
+use App\Entity\SchoolInvoice;
 use App\Entity\User;
 use App\Exception\ConflictException;
 use App\Exception\UnprocessableEntityException;
@@ -131,8 +132,44 @@ final class AccountingAgencyManager
         $this->em->flush();
     }
 
+    public function recordSchoolInvoicePaid(SchoolInvoice $invoice): void
+    {
+        if (SchoolInvoice::STATUS_PAID !== $invoice->getStatus()) {
+            return;
+        }
+
+        $agency = $invoice->getAgency();
+        if (!$agency instanceof Agency) {
+            return;
+        }
+
+        if ($this->journals->existsForSource(AccountingJournal::SOURCE_SCHOOL_INVOICE, (string) $invoice->getId())) {
+            return;
+        }
+
+        $amount = $invoice->getAmount();
+        if ($amount <= 0) {
+            return;
+        }
+
+        $occurredAt = $invoice->getPaidAt() ?? new \DateTimeImmutable();
+        $this->persistJournal(
+            $agency,
+            $occurredAt->setTime(0, 0),
+            AccountingJournal::ACCOUNT_SALES,
+            AccountingJournal::DIRECTION_CREDIT,
+            $amount,
+            $invoice->getCurrency(),
+            AccountingJournal::SOURCE_SCHOOL_INVOICE,
+            (string) $invoice->getId(),
+            sprintf('School invoice %s period %s', $invoice->getId(), (string) $invoice->getPeriodYm()),
+        );
+        $this->em->flush();
+    }
+
     public function recordCashHandoverVariance(CashHandover $handover): void
     {
+
         $agency = $handover->getAgency();
         if (!$agency instanceof Agency) {
             return;

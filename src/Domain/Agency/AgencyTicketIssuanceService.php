@@ -48,12 +48,15 @@ final class AgencyTicketIssuanceService
         $this->em->beginTransaction();
         try {
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            $this->occupancy->assertSeatSelectable(
-                $offer,
-                $booking->getTravelDate(),
-                $booking->getSeatNumber(),
-                $booking->getId(),
-            );
+            // CAPACITY_ONLY: booking already occupies a sold slot — do not re-validate layout/capacity.
+            if (!$offer->isCapacityOnly()) {
+                $this->occupancy->assertSeatSelectable(
+                    $offer,
+                    $booking->getTravelDate(),
+                    $booking->getSeatNumber(),
+                    $booking->getId(),
+                );
+            }
 
             $quote = $this->pricing->quote($booking->getOkapiPassRef());
             $reference = $this->references->next($booking->getAgency());
@@ -133,12 +136,14 @@ final class AgencyTicketIssuanceService
             $hasExistingPass = false;
 
             foreach ($bookings as $booking) {
-                $this->occupancy->assertSeatSelectable(
-                    $offer,
-                    $group->getTravelDate(),
-                    $booking->getSeatNumber(),
-                    $booking->getId(),
-                );
+                if (!$offer->isCapacityOnly()) {
+                    $this->occupancy->assertSeatSelectable(
+                        $offer,
+                        $group->getTravelDate(),
+                        $booking->getSeatNumber(),
+                        $booking->getId(),
+                    );
+                }
                 $seats[] = (string) $booking->getSeatNumber();
                 $quote = $this->pricing->quote($booking->getOkapiPassRef());
                 $totalTicketPrice += $this->effectivePrice->resolve($offer, $group->getTravelDate());

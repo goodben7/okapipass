@@ -52,6 +52,32 @@ class AgencyBookingRepository extends ServiceEntityRepository
         return $seats;
     }
 
+    public function countActiveForOfferDate(
+        AgencyOffer $offer,
+        \DateTimeImmutable $travelDate,
+        ?string $excludeBookingId = null,
+    ): int {
+        $now = new \DateTimeImmutable('now');
+
+        $qb = $this->createQueryBuilder('b')
+            ->select('COUNT(b.id)')
+            ->andWhere('b.offer = :offer')
+            ->andWhere('b.travelDate = :travelDate')
+            ->andWhere('b.status != :cancelled')
+            ->andWhere('b.expiresAt IS NULL OR b.expiresAt >= :now')
+            ->setParameter('offer', $offer)
+            ->setParameter('travelDate', $travelDate)
+            ->setParameter('cancelled', AgencyBooking::STATUS_CANCELLED)
+            ->setParameter('now', $now);
+
+        if (null !== $excludeBookingId && '' !== $excludeBookingId) {
+            $qb->andWhere('b.id != :excludeId')
+                ->setParameter('excludeId', $excludeBookingId);
+        }
+
+        return (int) $qb->getQuery()->getSingleScalarResult();
+    }
+
     public function countFutureByOffer(AgencyOffer $offer, \DateTimeImmutable $from): int
     {
         return (int) $this->createQueryBuilder('b')

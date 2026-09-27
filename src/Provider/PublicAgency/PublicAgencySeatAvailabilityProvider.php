@@ -50,6 +50,13 @@ final class PublicAgencySeatAvailabilityProvider implements ProviderInterface
             isFull: $data['isFull'],
             layout: $data['layout'],
             occupiedSeats: $data['occupiedSeats'],
+            vehicleUnassigned: (bool) ($data['vehicleUnassigned'] ?? false),
+            transportId: $data['transportId'] ?? null,
+            transportLabel: $data['transportLabel'] ?? null,
+            plateNumber: $data['plateNumber'] ?? null,
+            embarkationId: $data['embarkationId'] ?? null,
+            soldCount: (int) ($data['soldCount'] ?? 0),
+            seatMode: $data['seatMode'] ?? null,
         );
     }
 }

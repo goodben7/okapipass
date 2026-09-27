@@ -3,6 +3,7 @@
 namespace App\Dto\Agency;
 
 use App\Entity\Agency;
+use App\Entity\AgencyOffer;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class CreateAgencyPassProductDto
@@ -37,6 +38,12 @@ final class CreateAgencyPassProductDto
         public ?string $currency = Agency::DEFAULT_CURRENCY,
 
         public ?bool $active = true,
+
+        #[Assert\Choice(choices: [
+            AgencyOffer::SERVICE_INTERCITY,
+            AgencyOffer::SERVICE_URBAN,
+        ])]
+        public ?string $serviceType = null,
     ) {
     }
 }

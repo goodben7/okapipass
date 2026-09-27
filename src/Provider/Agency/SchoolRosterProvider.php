@@ -39,6 +39,9 @@ final class SchoolRosterProvider implements ProviderInterface
             date: $data['date'],
             embarkationId: $data['embarkationId'],
             students: $data['students'],
+            transportId: $data['transportId'] ?? null,
+            transportLabel: $data['transportLabel'] ?? null,
+            plateNumber: $data['plateNumber'] ?? null,
         );
     }
 }

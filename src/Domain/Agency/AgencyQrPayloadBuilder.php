@@ -3,6 +3,8 @@
 namespace App\Domain\Agency;
 
 use App\Entity\AgencyTicket;
+use App\Entity\TravelerPass;
+use App\Exception\ConflictException;
 use App\Exception\UnavailableDataException;
 use App\Exception\UnprocessableEntityException;
 use App\Repository\AgencyTicketRepository;
@@ -14,6 +16,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class AgencyQrPayloadBuilder
 {
     public const int TOKEN_TTL_HOURS = 2;
+    public const int BOARDING_COOLDOWN_SECONDS = 300;
 
     public function __construct(
         private ?AgencyTicketRepository $tickets = null,
@@ -123,7 +126,11 @@ final class AgencyQrPayloadBuilder
             throw new UnprocessableEntityException('Ticket cannot be boarded with this token.');
         }
 
-        $ticket->setQrTokenUsedAt(new \DateTimeImmutable());
+        $now = new \DateTimeImmutable();
+        $this->assertBoardingCooldown($ticket, $now);
+
+        $ticket->setQrTokenUsedAt($now);
+        $ticket->setLastBoardedAt($now);
         if (AgencyTicket::STATUS_ISSUED === $ticket->getStatus()) {
             $ticket->setStatus(AgencyTicket::STATUS_BOARDED);
         }
@@ -133,5 +140,29 @@ final class AgencyQrPayloadBuilder
         $this->em->flush();
 
         return $ticket;
+    }
+
+    private function assertBoardingCooldown(AgencyTicket $ticket, \DateTimeImmutable $now): void
+    {
+        $lastBoarded = $ticket->getLastBoardedAt();
+        if ($lastBoarded instanceof \DateTimeImmutable
+            && ($now->getTimestamp() - $lastBoarded->getTimestamp()) < self::BOARDING_COOLDOWN_SECONDS
+        ) {
+            throw new ConflictException('BOARDING_COOLDOWN: Ticket was boarded less than 5 minutes ago.');
+        }
+
+        $pass = $ticket->getTravelerPass();
+        $offer = $ticket->getOffer();
+        if ($pass instanceof TravelerPass
+            && null !== $offer
+            && $offer->isUrbanService()
+        ) {
+            $lastConsumed = $pass->getLastConsumedAt();
+            if ($lastConsumed instanceof \DateTimeImmutable
+                && ($now->getTimestamp() - $lastConsumed->getTimestamp()) < self::BOARDING_COOLDOWN_SECONDS
+            ) {
+                throw new ConflictException('BOARDING_COOLDOWN: Traveler pass consumed less than 5 minutes ago.');
+            }
+        }
     }
 }

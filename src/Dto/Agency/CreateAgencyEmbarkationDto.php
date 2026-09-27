@@ -14,7 +14,7 @@ class CreateAgencyEmbarkationDto
         #[Assert\NotBlank]
         public ?string $offer = null,
 
-        #[Assert\NotBlank]
+        /** Null = course unassigned (Vague 9 fleet). */
         public ?string $transport = null,
 
         #[Assert\NotBlank]

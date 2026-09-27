@@ -59,6 +59,7 @@ class AccountingJournal implements RessourceInterface, AgencyScopedInterface
     public const string SOURCE_AGENCY_PAYMENT = 'AGENCY_PAYMENT';
     public const string SOURCE_CASH_HANDOVER = 'CASH_HANDOVER';
     public const string SOURCE_WALLET_TOPUP = 'WALLET_TOPUP';
+    public const string SOURCE_SCHOOL_INVOICE = 'SCHOOL_INVOICE';
     public const string SOURCE_MANUAL = 'MANUAL';
 
     #[ORM\Id]
@@ -140,6 +141,7 @@ class AccountingJournal implements RessourceInterface, AgencyScopedInterface
             self::SOURCE_AGENCY_PAYMENT,
             self::SOURCE_CASH_HANDOVER,
             self::SOURCE_WALLET_TOPUP,
+            self::SOURCE_SCHOOL_INVOICE,
             self::SOURCE_MANUAL,
         ];
     }

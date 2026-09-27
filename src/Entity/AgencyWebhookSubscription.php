@@ -77,6 +77,8 @@ class AgencyWebhookSubscription implements RessourceInterface, AgencyScopedInter
 
     public const string EVENT_PAYMENT_PAID = 'payment.paid';
     public const string EVENT_TICKET_ISSUED = 'ticket.issued';
+    public const string EVENT_TRIP_TRANSPORT_ASSIGNED = 'trip.transport_assigned';
+    public const string EVENT_TRIP_TRANSPORT_UNASSIGNED = 'trip.transport_unassigned';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -121,6 +123,10 @@ class AgencyWebhookSubscription implements RessourceInterface, AgencyScopedInter
         return [
             self::EVENT_PAYMENT_PAID,
             self::EVENT_TICKET_ISSUED,
+            self::EVENT_TRIP_TRANSPORT_ASSIGNED,
+            self::EVENT_TRIP_TRANSPORT_UNASSIGNED,
+            self::EVENT_TRIP_TRANSPORT_ASSIGNED,
+            self::EVENT_TRIP_TRANSPORT_UNASSIGNED,
         ];
     }
 

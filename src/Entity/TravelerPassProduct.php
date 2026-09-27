@@ -124,6 +124,11 @@ class TravelerPassProduct implements RessourceInterface, AgencyScopedInterface
     #[Groups(['traveler_pass_product:get'])]
     private bool $active = true;
 
+    /** Null = any service type; INTERCITY or URBAN when product is route-specific. */
+    #[ORM\Column(name: 'PP_SERVICE_TYPE', length: 16, nullable: true)]
+    #[Groups(['traveler_pass_product:get', 'traveler_pass:get'])]
+    private ?string $serviceType = null;
+
     #[ORM\Column(name: 'PP_CREATED_AT')]
     #[Groups(['traveler_pass_product:get'])]
     private ?\DateTimeImmutable $createdAt = null;
@@ -249,6 +254,18 @@ class TravelerPassProduct implements RessourceInterface, AgencyScopedInterface
     public function setActive(bool $active): static
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function getServiceType(): ?string
+    {
+        return $this->serviceType;
+    }
+
+    public function setServiceType(?string $serviceType): static
+    {
+        $this->serviceType = $serviceType;
 
         return $this;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Dto\Agency;
 
+use App\Entity\AgencyOffer;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final class UpdateAgencyPassProductDto
@@ -29,6 +30,12 @@ final class UpdateAgencyPassProductDto
         public ?string $currency = null,
 
         public ?bool $active = null,
+
+        #[Assert\Choice(choices: [
+            AgencyOffer::SERVICE_INTERCITY,
+            AgencyOffer::SERVICE_URBAN,
+        ])]
+        public ?string $serviceType = null,
     ) {
     }
 }

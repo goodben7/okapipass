@@ -42,6 +42,41 @@ class AgencyTicketRepository extends ServiceEntityRepository
         return $seats;
     }
 
+    public function countActiveManualForOfferDate(AgencyOffer $offer, \DateTimeImmutable $travelDate): int
+    {
+        return (int) $this->createQueryBuilder('t')
+            ->select('COUNT(t.id)')
+            ->andWhere('t.offer = :offer')
+            ->andWhere('t.travelDate = :travelDate')
+            ->andWhere('t.status NOT IN (:freeStatuses)')
+            ->andWhere('t.booking IS NULL')
+            ->setParameter('offer', $offer)
+            ->setParameter('travelDate', $travelDate)
+            ->setParameter('freeStatuses', [
+                AgencyTicket::STATUS_CANCELLED,
+                AgencyTicket::STATUS_NO_SHOW,
+            ])
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countBoardedForOfferDate(AgencyOffer $offer, \DateTimeImmutable $travelDate): int
+    {
+        return (int) $this->createQueryBuilder('t')
+            ->select('COUNT(t.id)')
+            ->andWhere('t.offer = :offer')
+            ->andWhere('t.travelDate = :travelDate')
+            ->andWhere('t.status IN (:boarded)')
+            ->setParameter('offer', $offer)
+            ->setParameter('travelDate', $travelDate)
+            ->setParameter('boarded', [
+                AgencyTicket::STATUS_BOARDED,
+                AgencyTicket::STATUS_USED,
+            ])
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     public function findOneByReference(string $reference): ?AgencyTicket
     {
         return $this->findOneBy(['reference' => strtoupper(trim($reference))]);

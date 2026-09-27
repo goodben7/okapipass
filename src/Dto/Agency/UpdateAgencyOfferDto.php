@@ -38,6 +38,9 @@ class UpdateAgencyOfferDto
         #[Assert\Choice(callback: [AgencyOffer::class, 'getServiceTypesAsList'])]
         public ?string $serviceType = null,
 
+        #[Assert\Choice(callback: [AgencyOffer::class, 'getSeatModesAsList'])]
+        public ?string $seatMode = null,
+
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = null,
 

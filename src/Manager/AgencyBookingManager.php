@@ -59,7 +59,7 @@ class AgencyBookingManager
         $this->em->beginTransaction();
         try {
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            $seat = $this->occupancy->assertSeatSelectable($offer, $travelDate, $dto->seatNumber);
+            $seat = $this->occupancy->resolveSeatForSale($offer, $travelDate, $dto->seatNumber);
 
             $booking = new AgencyBooking();
             $booking->setAgency($agency);
@@ -125,7 +125,7 @@ class AgencyBookingManager
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
 
             if ($seatChanged) {
-                $seat = $this->occupancy->assertSeatSelectable(
+                $seat = $this->occupancy->resolveSeatForSale(
                     $offer,
                     $travelDate,
                     $dto->seatNumber ?? $booking->getSeatNumber(),
@@ -199,7 +199,7 @@ class AgencyBookingManager
         $this->em->beginTransaction();
         try {
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            $seat = $this->occupancy->assertSeatSelectable($offer, $travelDate, $dto->seatNumber);
+            $seat = $this->occupancy->resolveSeatForSale($offer, $travelDate, $dto->seatNumber);
             $quote = $this->pricing->quote($dto->okapiPassRef);
             $reference = $this->references->next($agency);
 
@@ -284,7 +284,7 @@ class AgencyBookingManager
         $this->em->beginTransaction();
         try {
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            $seat = $this->occupancy->assertSeatSelectable(
+            $seat = $this->occupancy->resolveSeatForSale(
                 $offer,
                 $ticket->getTravelDate(),
                 (string) $dto->seatNumber,

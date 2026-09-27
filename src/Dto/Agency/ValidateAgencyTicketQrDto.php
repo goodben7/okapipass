@@ -10,6 +10,10 @@ final class ValidateAgencyTicketQrDto
         #[Assert\NotBlank]
         #[Assert\Length(max: 64)]
         public ?string $token = null,
+
+        public ?float $lat = null,
+
+        public ?float $lng = null,
     ) {
     }
 }

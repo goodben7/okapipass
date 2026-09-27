@@ -275,6 +275,10 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     #[Groups(['agency_ticket:get'])]
     private ?\DateTimeImmutable $qrTokenUsedAt = null;
 
+    #[ORM\Column(name: 'AK_LAST_BOARDED_AT', nullable: true)]
+    #[Groups(['agency_ticket:get'])]
+    private ?\DateTimeImmutable $lastBoardedAt = null;
+
     #[ORM\Column(name: 'AK_INSURANCE_OPTED', options: ['default' => false])]
     #[Groups(['agency_ticket:get'])]
     private bool $insuranceOpted = false;
@@ -705,6 +709,18 @@ class AgencyTicket implements RessourceInterface, AgencyScopedInterface
     public function setQrTokenUsedAt(?\DateTimeImmutable $qrTokenUsedAt): static
     {
         $this->qrTokenUsedAt = $qrTokenUsedAt;
+
+        return $this;
+    }
+
+    public function getLastBoardedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastBoardedAt;
+    }
+
+    public function setLastBoardedAt(?\DateTimeImmutable $lastBoardedAt): static
+    {
+        $this->lastBoardedAt = $lastBoardedAt;
 
         return $this;
     }

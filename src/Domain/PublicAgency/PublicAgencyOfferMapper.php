@@ -26,6 +26,8 @@ final class PublicAgencyOfferMapper
             transportKind: (string) $transport?->getKind(),
             transportCapacity: (int) ($transport?->getCapacity() ?? 0),
             bookingHoldMinutes: $offer->getBookingHoldMinutes(),
+            serviceType: $offer->getServiceType(),
+            seatMode: $offer->getSeatMode(),
         );
     }
 }

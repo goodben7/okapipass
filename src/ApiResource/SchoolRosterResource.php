@@ -30,6 +30,9 @@ final class SchoolRosterResource
         public string $date,
         public ?string $embarkationId = null,
         public array $students = [],
+        public ?string $transportId = null,
+        public ?string $transportLabel = null,
+        public ?string $plateNumber = null,
     ) {
     }
 }

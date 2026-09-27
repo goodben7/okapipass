@@ -97,7 +97,7 @@ final class PublicAgencyBookingManager
         $this->em->beginTransaction();
         try {
             $this->em->lock($offer, LockMode::PESSIMISTIC_WRITE);
-            $seat = $this->occupancy->assertSeatSelectable($offer, $travelDate, $dto->seatNumber);
+            $seat = $this->occupancy->resolveSeatForSale($offer, $travelDate, $dto->seatNumber);
 
             $booking = new AgencyBooking();
             $booking->setAgency($offer->getAgency());

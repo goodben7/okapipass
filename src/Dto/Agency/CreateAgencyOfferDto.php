@@ -47,6 +47,9 @@ class CreateAgencyOfferDto
         #[Assert\Choice(callback: [AgencyOffer::class, 'getServiceTypesAsList'])]
         public ?string $serviceType = AgencyOffer::SERVICE_INTERCITY,
 
+        #[Assert\Choice(callback: [AgencyOffer::class, 'getSeatModesAsList'])]
+        public ?string $seatMode = null,
+
         #[Assert\Positive]
         public ?int $bookingHoldMinutes = AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES,
 

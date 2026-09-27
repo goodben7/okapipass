@@ -39,6 +39,8 @@ final class PublicAgencyOfferResource
         public string $transportKind,
         public int $transportCapacity,
         public int $bookingHoldMinutes,
+        public string $serviceType = 'INTERCITY',
+        public string $seatMode = 'ASSIGNED_SEAT',
     ) {
     }
 }

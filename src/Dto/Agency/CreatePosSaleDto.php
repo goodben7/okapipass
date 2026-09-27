@@ -26,7 +26,6 @@ final class CreatePosSaleDto
         #[Assert\Length(max: 20)]
         public ?string $passengerPhone = null,
 
-        #[Assert\NotBlank]
         #[Assert\Length(max: 10)]
         public ?string $seatNumber = null,
 

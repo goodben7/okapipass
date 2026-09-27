@@ -40,6 +40,9 @@ final class SchoolBusManager
      *     contractId: string,
      *     date: string,
      *     embarkationId: ?string,
+     *     transportId: ?string,
+     *     transportLabel: ?string,
+     *     plateNumber: ?string,
      *     students: list<array{
      *         id: string,
      *         fullName: string,
@@ -63,6 +66,7 @@ final class SchoolBusManager
         }
 
         $embarkation = $this->embarkations->findOneForOfferOnDate($offer, $date);
+        $transport = $embarkation?->getTransport();
         $attendanceByStudent = [];
         foreach ($this->attendances->findByContractOnDate($contract, $date) as $row) {
             $sid = $row->getStudent()?->getId();
@@ -91,6 +95,9 @@ final class SchoolBusManager
             'contractId' => (string) $contract->getId(),
             'date' => $date->format('Y-m-d'),
             'embarkationId' => $embarkation?->getId(),
+            'transportId' => $transport?->getId(),
+            'transportLabel' => $transport?->getLabel(),
+            'plateNumber' => $transport?->getPlateNumber(),
             'students' => $students,
         ];
     }
@@ -175,12 +182,15 @@ final class SchoolBusManager
         return $embarkation;
     }
 
+    /**
+     * Null = unassigned departure (assign later via assign-transport).
+     */
     private function resolveTransportForDeparture(
         ?string $transportId,
         SchoolContract $contract,
         AgencyOffer $offer,
         ?string $agencyId,
-    ): AgencyTransport {
+    ): ?AgencyTransport {
         if (null !== $transportId && '' !== trim($transportId)) {
             $id = $this->extractId($transportId);
             $transport = $this->transports->find($id);
@@ -201,7 +211,7 @@ final class SchoolBusManager
             return $fromOffer;
         }
 
-        throw new UnprocessableEntityException('transportId is required when the contract and offer have no transport.');
+        return null;
     }
 
     private function parseDate(string $value): \DateTimeImmutable

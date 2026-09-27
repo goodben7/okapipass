@@ -83,6 +83,11 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
 
     public const string SERVICE_INTERCITY = 'INTERCITY';
     public const string SERVICE_SCHOOL = 'SCHOOL';
+    public const string SERVICE_URBAN = 'URBAN';
+
+    public const string SEAT_ASSIGNED = 'ASSIGNED_SEAT';
+    public const string SEAT_CAPACITY = 'CAPACITY_ONLY';
+    public const string SEAT_NONE = 'NONE';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -152,6 +157,11 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     #[Assert\Choice(callback: [self::class, 'getServiceTypesAsList'])]
     #[Groups(['agency_offer:get'])]
     private string $serviceType = self::SERVICE_INTERCITY;
+
+    #[ORM\Column(name: 'AO_SEAT_MODE', length: 20, options: ['default' => self::SEAT_ASSIGNED])]
+    #[Assert\Choice(callback: [self::class, 'getSeatModesAsList'])]
+    #[Groups(['agency_offer:get'])]
+    private string $seatMode = self::SEAT_ASSIGNED;
 
     /** Minutes a seat is held after an online booking before auto-cancel. */
     #[ORM\Column(name: 'AO_BOOKING_HOLD_MINUTES')]
@@ -345,6 +355,17 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
         return [
             self::SERVICE_INTERCITY,
             self::SERVICE_SCHOOL,
+            self::SERVICE_URBAN,
+        ];
+    }
+
+    /** @return list<string> */
+    public static function getSeatModesAsList(): array
+    {
+        return [
+            self::SEAT_ASSIGNED,
+            self::SEAT_CAPACITY,
+            self::SEAT_NONE,
         ];
     }
 
@@ -363,6 +384,45 @@ class AgencyOffer implements RessourceInterface, AgencyScopedInterface
     public function isSchoolService(): bool
     {
         return self::SERVICE_SCHOOL === $this->serviceType;
+    }
+
+    /** @deprecated Prefer isSchoolService() */
+    public function isSchool(): bool
+    {
+        return $this->isSchoolService();
+    }
+
+    public function isUrbanService(): bool
+    {
+        return self::SERVICE_URBAN === $this->serviceType;
+    }
+
+    public function isIntercityService(): bool
+    {
+        return self::SERVICE_INTERCITY === $this->serviceType;
+    }
+
+    public function getSeatMode(): string
+    {
+        return $this->seatMode;
+    }
+
+    public function setSeatMode(string $seatMode): static
+    {
+        $this->seatMode = $seatMode;
+
+        return $this;
+    }
+
+    public function isCapacityOnly(): bool
+    {
+        return self::SEAT_CAPACITY === $this->seatMode
+            || self::SERVICE_URBAN === $this->serviceType;
+    }
+
+    public function requiresAssignedSeat(): bool
+    {
+        return self::SEAT_ASSIGNED === $this->seatMode;
     }
 
     public function getBookingHoldMinutes(): int

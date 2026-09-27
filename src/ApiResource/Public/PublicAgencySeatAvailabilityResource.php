@@ -32,6 +32,13 @@ final class PublicAgencySeatAvailabilityResource
         public bool $isFull,
         public array $layout,
         public array $occupiedSeats,
+        public bool $vehicleUnassigned = false,
+        public ?string $transportId = null,
+        public ?string $transportLabel = null,
+        public ?string $plateNumber = null,
+        public ?string $embarkationId = null,
+        public int $soldCount = 0,
+        public ?string $seatMode = null,
     ) {
     }
 }

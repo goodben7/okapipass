@@ -18,16 +18,24 @@ use ApiPlatform\Metadata\Post;
 use App\Doctrine\IdGenerator;
 use App\Domain\Agency\AgencyScopedInterface;
 use App\Dto\Agency\AddEmbarkationTicketsDto;
+use App\Dto\Agency\AssignTripTransportDto;
 use App\Dto\Agency\CreateAgencyEmbarkationDto;
+use App\Dto\Agency\TripAssignResultDto;
+use App\Dto\Agency\UnassignTripTransportDto;
 use App\Dto\Agency\UpdateAgencyEmbarkationStatusDto;
+use App\Dto\Agency\ValidateAgencyTicketQrDto;
+use App\Dto\Agency\ValidateBoardingResultDto;
 use App\Model\RessourceInterface;
 use App\Repository\AgencyEmbarkationRepository;
 use App\State\Agency\AddEmbarkationTicketsProcessor;
 use App\State\Agency\AgencyScopedItemProvider;
+use App\State\Agency\AssignTripTransportProcessor;
 use App\State\Agency\CreateAgencyEmbarkationProcessor;
 use App\State\Agency\DeclareEmbarkationProcessor;
 use App\State\Agency\RemoveEmbarkationTicketProcessor;
+use App\State\Agency\UnassignTripTransportProcessor;
 use App\State\Agency\UpdateAgencyEmbarkationStatusProcessor;
+use App\State\Agency\ValidateBoardingProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -89,6 +97,100 @@ use Symfony\Component\Validator\Constraints as Assert;
             status: 201,
             normalizationContext: ['groups' => ['pass_declaration:get']],
         ),
+        // Fleet assign — Embarkation = Trip (Vague 9)
+        new Post(
+            uriTemplate: '/agency/embarkations/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: AssignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: AssignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Patch(
+            uriTemplate: '/agency/embarkations/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: AssignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: AssignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Delete(
+            uriTemplate: '/agency/embarkations/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: UnassignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            deserialize: true,
+            provider: AgencyScopedItemProvider::class,
+            processor: UnassignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Post(
+            uriTemplate: '/agency/embarkations/{id}/validate-boarding',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: ValidateAgencyTicketQrDto::class,
+            output: ValidateBoardingResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: ValidateBoardingProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['validate_boarding:get']],
+        ),
+        // URI aliases /agency/trips/{id}/… (same processors)
+        new Get(
+            uriTemplate: '/agency/trips/{id}',
+            security: AgencyPortalAccess::EXPRESSION,
+            provider: AgencyScopedItemProvider::class,
+        ),
+        new GetCollection(
+            uriTemplate: '/agency/trips',
+            security: AgencyPortalAccess::EXPRESSION,
+            provider: CollectionProvider::class,
+        ),
+        new Post(
+            uriTemplate: '/agency/trips/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: AssignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: AssignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Patch(
+            uriTemplate: '/agency/trips/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: AssignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: AssignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Delete(
+            uriTemplate: '/agency/trips/{id}/assign',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: UnassignTripTransportDto::class,
+            output: TripAssignResultDto::class,
+            deserialize: true,
+            provider: AgencyScopedItemProvider::class,
+            processor: UnassignTripTransportProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['trip_assign:get']],
+        ),
+        new Post(
+            uriTemplate: '/agency/trips/{id}/validate-boarding',
+            security: AgencyPortalAccess::EXPRESSION,
+            input: ValidateAgencyTicketQrDto::class,
+            output: ValidateBoardingResultDto::class,
+            provider: AgencyScopedItemProvider::class,
+            processor: ValidateBoardingProcessor::class,
+            status: 200,
+            normalizationContext: ['groups' => ['validate_boarding:get']],
+        ),
     ]
 )]
 #[ApiFilter(SearchFilter::class, properties: [
@@ -135,7 +237,7 @@ class AgencyEmbarkation implements RessourceInterface, AgencyScopedInterface
     private ?AgencyOffer $offer = null;
 
     #[ORM\ManyToOne]
-    #[ORM\JoinColumn(name: 'AE_TRANSPORT', nullable: false, referencedColumnName: 'AT_ID')]
+    #[ORM\JoinColumn(name: 'AE_TRANSPORT', nullable: true, referencedColumnName: 'AT_ID')]
     #[Groups(['agency_embarkation:get'])]
     private ?AgencyTransport $transport = null;
 

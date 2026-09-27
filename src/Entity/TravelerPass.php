@@ -74,6 +74,10 @@ class TravelerPass implements RessourceInterface, AgencyScopedInterface
     #[Groups(['traveler_pass:get'])]
     private ?\DateTimeImmutable $createdAt = null;
 
+    #[ORM\Column(name: 'TP_LAST_CONSUMED_AT', nullable: true)]
+    #[Groups(['traveler_pass:get'])]
+    private ?\DateTimeImmutable $lastConsumedAt = null;
+
     /** @return list<string> */
     public static function getStatusesAsList(): array
     {
@@ -201,6 +205,18 @@ class TravelerPass implements RessourceInterface, AgencyScopedInterface
     public function getCreatedAt(): ?\DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getLastConsumedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastConsumedAt;
+    }
+
+    public function setLastConsumedAt(?\DateTimeImmutable $lastConsumedAt): static
+    {
+        $this->lastConsumedAt = $lastConsumedAt;
+
+        return $this;
     }
 
     #[ORM\PrePersist]

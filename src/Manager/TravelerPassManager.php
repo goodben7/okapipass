@@ -72,6 +72,9 @@ final class TravelerPassManager
         $product->setPrice((int) $dto->price);
         $product->setCurrency($dto->currency ?? Agency::DEFAULT_CURRENCY);
         $product->setActive(false !== $dto->active);
+        if (null !== $dto->serviceType && '' !== trim($dto->serviceType)) {
+            $product->setServiceType(strtoupper(trim($dto->serviceType)));
+        }
 
         $this->em->persist($product);
         $this->em->flush();
@@ -107,6 +110,9 @@ final class TravelerPassManager
         }
         if (null !== $dto->active) {
             $product->setActive($dto->active);
+        }
+        if (null !== $dto->serviceType) {
+            $product->setServiceType('' === trim($dto->serviceType) ? null : strtoupper(trim($dto->serviceType)));
         }
 
         $this->em->flush();
@@ -217,6 +223,7 @@ final class TravelerPassManager
             return;
         }
         $pass->setTripsRemaining($remaining - 1);
+        $pass->setLastConsumedAt(new \DateTimeImmutable('now'));
         if ($pass->getTripsRemaining() <= 0) {
             $pass->setTripsRemaining(0);
             $pass->setStatus(TravelerPass::STATUS_EXHAUSTED);

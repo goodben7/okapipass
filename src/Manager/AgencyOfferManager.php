@@ -68,6 +68,7 @@ class AgencyOfferManager
         $offer->setOnlineSales(
             AgencyOffer::SERVICE_SCHOOL === $serviceType ? false : ($dto->onlineSales ?? false)
         );
+        $offer->setSeatMode($this->resolveSeatMode($serviceType, $dto->seatMode));
         $offer->setBookingHoldMinutes($dto->bookingHoldMinutes ?? AgencyOffer::DEFAULT_BOOKING_HOLD_MINUTES);
         $offer->setBaggageFreeKg($dto->baggageFreeKg ?? AgencyOffer::DEFAULT_BAGGAGE_FREE_KG);
         $offer->setBaggageExcessPricePerKg($dto->baggageExcessPricePerKg ?? 0);
@@ -139,6 +140,12 @@ class AgencyOfferManager
         }
         if ($offer->isSchoolService()) {
             $offer->setOnlineSales(false);
+        }
+        if (null !== $dto->seatMode || null !== $dto->serviceType) {
+            $offer->setSeatMode($this->resolveSeatMode(
+                $offer->getServiceType(),
+                $dto->seatMode ?? $offer->getSeatMode(),
+            ));
         }
         if (null !== $dto->bookingHoldMinutes) {
             $offer->setBookingHoldMinutes($dto->bookingHoldMinutes);
@@ -252,6 +259,35 @@ class AgencyOfferManager
         }
 
         return $transport;
+    }
+
+    /**
+     * Defaults: URBAN → CAPACITY_ONLY, SCHOOL → NONE, INTERCITY → ASSIGNED_SEAT.
+     * Explicit seatMode wins unless SCHOOL (always NONE).
+     */
+    private function resolveSeatMode(string $serviceType, ?string $explicitSeatMode): string
+    {
+        $serviceType = strtoupper($serviceType);
+        if (AgencyOffer::SERVICE_SCHOOL === $serviceType) {
+            return AgencyOffer::SEAT_NONE;
+        }
+
+        if (null !== $explicitSeatMode && '' !== trim($explicitSeatMode)) {
+            $mode = strtoupper(trim($explicitSeatMode));
+            if (!\in_array($mode, AgencyOffer::getSeatModesAsList(), true)) {
+                throw new UnprocessableEntityException(sprintf('Invalid seatMode "%s".', $mode));
+            }
+            if (AgencyOffer::SEAT_NONE === $mode) {
+                throw new UnprocessableEntityException('seatMode NONE is reserved for SCHOOL offers.');
+            }
+
+            return $mode;
+        }
+
+        return match ($serviceType) {
+            AgencyOffer::SERVICE_URBAN => AgencyOffer::SEAT_CAPACITY,
+            default => AgencyOffer::SEAT_ASSIGNED,
+        };
     }
 
     private function extractId(string $ref): string
