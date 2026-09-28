@@ -40,6 +40,12 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
         }
 
         if (Payment::STATUS_PAID === $payment->getStatus()) {
+            $ticket = $payment->getTicket();
+            if ($ticket instanceof Ticket) {
+                $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
+                $this->em->flush();
+            }
+
             return $payment;
         }
 

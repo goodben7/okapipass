@@ -42,6 +42,15 @@ class TicketFlexpayCheckPaymentStatusProcessor implements ProcessorInterface
         }
 
         if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
+            $payment = $this->payments->findOneBy(
+                ['ticket' => $ticket, 'status' => Payment::STATUS_PAID],
+                ['createdAt' => 'DESC'],
+            );
+            if ($payment instanceof Payment) {
+                $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
+                $this->em->flush();
+            }
+
             return $ticket;
         }
 

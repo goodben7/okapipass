@@ -324,11 +324,15 @@ class PaymentManager
 
         if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()
             && Payment::STATUS_PAID === $payment->getStatus()) {
+            // Catch-up: paid on web but WhatsApp was skipped / failed earlier.
+            $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
+            $this->em->flush();
+
             return $ticket;
         }
 
         $now = new \DateTimeImmutable();
-        $ticketWasPaid = Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
+        $ticketWasPaid = false;
 
         if (Payment::STATUS_PAID !== $payment->getStatus()) {
             $payment->setStatus(Payment::STATUS_PAID);
@@ -381,27 +385,16 @@ class PaymentManager
         $webhook = is_array($webhook) ? $webhook : [];
         $meta = $webhook['_okapi'] ?? null;
         $meta = is_array($meta) ? $meta : [];
-        if (($meta['whatsapp_paid_notified'] ?? false) === true) {
-            return;
-        }
 
-        // Already notified for same phone/route/GoPass recently → skip extra WhatsApp.
-        $siblingPaid = $this->ticketRepository->findRecentPaidSibling(
-            $ticket,
-            new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES)),
-        );
-        if ($siblingPaid instanceof Ticket) {
-            $meta['whatsapp_paid_notified'] = true;
-            $meta['whatsapp_skipped_duplicate_of'] = $siblingPaid->getId();
+        // Previous anti-dupe wrongly marked notified without sending — allow catch-up.
+        if (($meta['whatsapp_paid_notified'] ?? false) === true
+            && !empty($meta['whatsapp_skipped_duplicate_of'])) {
+            unset($meta['whatsapp_paid_notified'], $meta['whatsapp_skipped_duplicate_of']);
             $webhook['_okapi'] = $meta;
             $payment->setProviderWebhook($webhook);
-            $this->cancelSiblingUnpaidTickets($ticket);
-            $this->logger->info('payment.whatsapp_paid_skipped_duplicate', [
-                'paymentId' => $payment->getId(),
-                'ticketId' => $ticket->getId(),
-                'siblingTicketId' => $siblingPaid->getId(),
-            ]);
+        }
 
+        if (($meta['whatsapp_paid_notified'] ?? false) === true) {
             return;
         }
 
