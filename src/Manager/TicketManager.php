@@ -8,23 +8,41 @@ use App\Exception\UnavailableDataException;
 use App\Message\Query\GetUserDetails;
 use App\Message\Query\QueryBusInterface;
 use App\Model\NewTicketModel;
+use App\Repository\TicketRepository;
 use App\Service\ActivityEventDispatcher;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 
 class TicketManager
 {
+    private const int REUSE_WINDOW_MINUTES = 45;
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,
         private QueryBusInterface $queries,
         private ActivityEventDispatcher $eventDispatcher,
-    )
-    {
+        private TicketRepository $tickets,
+    ) {
     }
 
     public function createFrom(NewTicketModel $model): Ticket
     {
+        $phone = trim((string) ($model->phone ?? ''));
+        if ('' !== $phone && null !== $model->goPass && null !== $model->departure && null !== $model->arrival) {
+            $existing = $this->tickets->findReusableUnpaid(
+                $phone,
+                $model->goPass,
+                $model->departure,
+                $model->arrival,
+                $model->identifier,
+                new \DateTimeImmutable(sprintf('-%d minutes', self::REUSE_WINDOW_MINUTES)),
+            );
+            if ($existing instanceof Ticket) {
+                return $existing;
+            }
+        }
+
         $userId = $this->security->getUser()?->getUserIdentifier();
         $user = null;
 
@@ -32,7 +50,6 @@ class TicketManager
             /** @var User $user */
             $user = $this->queries->ask(new GetUserDetails($userId));
         }
-        
 
         $ticket = new Ticket();
 

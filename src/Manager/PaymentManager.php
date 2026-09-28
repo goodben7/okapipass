@@ -12,6 +12,7 @@ use App\Message\Query\QueryBusInterface;
 use App\Model\PaymentGatewayInterface;
 use App\Model\NewPaymentModel;
 use App\Repository\PaymentRepository;
+use App\Repository\TicketRepository;
 use App\Service\ActivityEventDispatcher;
 use App\Service\NotificationService;
 use App\Service\TicketUniqueReferenceGenerator;
@@ -24,6 +25,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class PaymentManager
 {
+    private const int SIBLING_CANCEL_WINDOW_MINUTES = 120;
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,
@@ -35,6 +38,7 @@ class PaymentManager
         private PaymentGatewayInterface $gateway,
         private NotificationService $notifications,
         private LoggerInterface $logger,
+        private TicketRepository $ticketRepository,
         #[Autowire('%env(DEFAULT_URI)%')]
         private string $apiBaseUrl,
     ) {
@@ -42,6 +46,34 @@ class PaymentManager
 
     public function createFrom(NewPaymentModel $model): Payment
     {
+        $ticket = $model->ticket;
+        if ($ticket instanceof Ticket) {
+            $existing = $this->paymentRepository->findOneBy(
+                [
+                    'ticket' => $ticket,
+                    'status' => Payment::STATUS_PENDING,
+                    'method' => $model->method,
+                ],
+                ['createdAt' => 'DESC'],
+            );
+            if ($existing instanceof Payment) {
+                return $existing;
+            }
+
+            if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
+                $paid = $this->paymentRepository->findOneBy(
+                    [
+                        'ticket' => $ticket,
+                        'status' => Payment::STATUS_PAID,
+                    ],
+                    ['createdAt' => 'DESC'],
+                );
+                if ($paid instanceof Payment) {
+                    return $paid;
+                }
+            }
+        }
+
         $userId = $this->security->getUser()?->getUserIdentifier();
         $paidBy = null;
 
@@ -63,9 +95,7 @@ class PaymentManager
         $this->em->persist($payment);
         $this->em->flush();
 
-        $this->eventDispatcher->dispatch($payment, Payment::EVENT_PAYMENT_CREATED); 
-
-
+        $this->eventDispatcher->dispatch($payment, Payment::EVENT_PAYMENT_CREATED);
 
         return $payment;
     }
@@ -148,7 +178,13 @@ class PaymentManager
             $payment->setProviderTransactionId((string) $transactionId);
         }
 
-        $payment->setProviderWebhook($payload);
+        $previousWebhook = $payment->getProviderWebhook();
+        $previousMeta = \is_array($previousWebhook) ? ($previousWebhook['_okapi'] ?? null) : null;
+        $payloadWithMeta = $payload;
+        if (\is_array($previousMeta)) {
+            $payloadWithMeta['_okapi'] = $previousMeta;
+        }
+        $payment->setProviderWebhook($payloadWithMeta);
 
         $incomingStatus = $payload['status']
             ?? ($payload['transaction']['status'] ?? null)
@@ -315,6 +351,8 @@ class PaymentManager
         if (($meta['whatsapp_paid_notified'] ?? false) === true) {
             return;
         }
+
+        $this->cancelSiblingUnpaidTickets($ticket);
 
         $goPass = $ticket->getGoPass();
         $departure = $ticket->getDeparture();
@@ -494,5 +532,39 @@ class PaymentManager
         }
 
         return $value;
+    }
+
+    /**
+     * After one successful pay, drop orphan pending tickets created by checkout retries
+     * (new Idempotency-Key / double-click) so they cannot fire extra WhatsApp later.
+     */
+    private function cancelSiblingUnpaidTickets(Ticket $paidTicket): void
+    {
+        $siblings = $this->ticketRepository->findSiblingUnpaidPending(
+            $paidTicket,
+            new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES)),
+        );
+
+        foreach ($siblings as $sibling) {
+            $sibling->setPaymentStatus(Ticket::PAYMENT_STATUS_CANCELLED);
+            $sibling->setStatus(Ticket::STATUS_CANCELLED);
+
+            $pendingPayments = $this->paymentRepository->findBy([
+                'ticket' => $sibling,
+                'status' => Payment::STATUS_PENDING,
+            ]);
+            foreach ($pendingPayments as $pending) {
+                $pending->setStatus(Payment::STATUS_CANCELLED);
+            }
+
+            $this->logger->info('payment.cancel_sibling_unpaid_ticket', [
+                'paidTicketId' => $paidTicket->getId(),
+                'cancelledTicketId' => $sibling->getId(),
+            ]);
+        }
+
+        if ([] !== $siblings) {
+            $this->em->flush();
+        }
     }
 }

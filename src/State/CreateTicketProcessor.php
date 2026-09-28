@@ -28,10 +28,17 @@ class CreateTicketProcessor implements ProcessorInterface
         \assert($data instanceof CreateTicketDto);
 
         $key = $this->idempotency->readKeyHeader();
+        $claim = null;
         if (null !== $key) {
-            $replay = $this->idempotency->findReplay(IdempotencyRecord::SCOPE_TICKET_CREATE, $key);
-            if ($replay instanceof IdempotencyRecord) {
-                $ticketId = (string) (($replay->getResponseBody() ?? [])['id'] ?? '');
+            [$claim, $isNew] = $this->idempotency->claimOrReplay(null, IdempotencyRecord::SCOPE_TICKET_CREATE, $key);
+            if (!$isNew) {
+                $ticketId = (string) (($claim->getResponseBody() ?? [])['id'] ?? '');
+                // Claim still in progress (parallel request) — brief wait then reload.
+                if ('' === $ticketId || 0 === $claim->getResponseStatus()) {
+                    usleep(150_000);
+                    $this->em->refresh($claim);
+                    $ticketId = (string) (($claim->getResponseBody() ?? [])['id'] ?? '');
+                }
                 $ticket = '' !== $ticketId ? $this->em->find(Ticket::class, $ticketId) : null;
                 if (!$ticket instanceof Ticket) {
                     throw new UnavailableDataException('Idempotent ticket replay failed: ticket not found.');
@@ -53,18 +60,12 @@ class CreateTicketProcessor implements ProcessorInterface
 
         $ticket = $this->manager->createFrom($model);
 
-        if (null !== $key) {
-            $this->idempotency->store(
-                null,
-                IdempotencyRecord::SCOPE_TICKET_CREATE,
-                $key,
-                201,
-                [
-                    'id' => (string) $ticket->getId(),
-                    'phone' => $ticket->getPhone(),
-                    'status' => $ticket->getStatus(),
-                ],
-            );
+        if (null !== $claim) {
+            $this->idempotency->complete($claim, 201, [
+                'id' => (string) $ticket->getId(),
+                'phone' => $ticket->getPhone(),
+                'status' => $ticket->getStatus(),
+            ]);
         }
 
         return $ticket;
