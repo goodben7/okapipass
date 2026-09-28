@@ -55,7 +55,7 @@ final class ValidateBoardingProcessor implements ProcessorInterface
         }
         $this->agencyContext->assertOwns($embarkation->getAgency());
 
-        $token = trim((string) $data->token);
+        $token = $this->qr->resolveScanToken(trim((string) $data->token));
         $preview = $this->tickets->findOneByQrToken($token);
         if (!$preview instanceof AgencyTicket) {
             throw new UnavailableDataException('QR token not found.');

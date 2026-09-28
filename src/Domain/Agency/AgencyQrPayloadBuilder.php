@@ -100,6 +100,70 @@ final class AgencyQrPayloadBuilder
     }
 
     /**
+     * Accepts raw qrToken (64 hex max), VP- reference, or full base64 qrPayload from scan.
+     */
+    public function resolveScanToken(string $raw): string
+    {
+        $raw = trim($raw);
+        if ('' === $raw) {
+            throw new UnprocessableEntityException('Empty QR / token.');
+        }
+
+        // Already a stored rotating token (bin2hex 16 bytes = 32 chars; column max 64).
+        if (preg_match('/^[a-f0-9]{32,64}$/i', $raw)) {
+            return strtolower($raw);
+        }
+
+        // Ticket reference pasted in the scanner (VP-…).
+        if (preg_match('/^VP-/i', $raw) && null !== $this->tickets) {
+            $ticket = $this->tickets->findOneByReference($raw);
+            if (!$ticket instanceof AgencyTicket) {
+                throw new UnavailableDataException('Ticket reference not found.');
+            }
+            if (null === $ticket->getQrToken()) {
+                $this->refreshToken($ticket);
+                $ticket->setQrPayload($this->build($ticket));
+                $this->em?->flush();
+            }
+
+            return (string) $ticket->getQrToken();
+        }
+
+        // Full QR payload (base64 JSON from AgencyQrPayloadBuilder::build).
+        $decoded = base64_decode($raw, true);
+        if (false !== $decoded) {
+            try {
+                $payload = json_decode($decoded, true, 512, \JSON_THROW_ON_ERROR);
+                if (\is_array($payload) && isset($payload['token']) && \is_string($payload['token']) && '' !== trim($payload['token'])) {
+                    return trim($payload['token']);
+                }
+                if (\is_array($payload) && isset($payload['ref']) && \is_string($payload['ref']) && null !== $this->tickets) {
+                    $ticket = $this->tickets->findOneByReference($payload['ref']);
+                    if ($ticket instanceof AgencyTicket && null !== $ticket->getQrToken()) {
+                        return (string) $ticket->getQrToken();
+                    }
+                }
+            } catch (\JsonException) {
+                // fall through
+            }
+        }
+
+        // Raw JSON payload (some scanners decode base64 client-side).
+        if (str_starts_with($raw, '{')) {
+            try {
+                $payload = json_decode($raw, true, 512, \JSON_THROW_ON_ERROR);
+                if (\is_array($payload) && isset($payload['token']) && \is_string($payload['token']) && '' !== trim($payload['token'])) {
+                    return trim($payload['token']);
+                }
+            } catch (\JsonException) {
+                // fall through
+            }
+        }
+
+        throw new UnprocessableEntityException('Unrecognized QR payload. Scan the ticket QR or paste VP-… / token.');
+    }
+
+    /**
      * Validate rotating QR token at embarkation; marks usedAt, consumes traveler pass if linked, refreshes token for reprint.
      */
     public function validateAndConsume(string $token): AgencyTicket

@@ -8,7 +8,7 @@ final class ValidateAgencyTicketQrDto
 {
     public function __construct(
         #[Assert\NotBlank]
-        #[Assert\Length(max: 64)]
+        #[Assert\Length(max: 4096)]
         public ?string $token = null,
 
         public ?float $lat = null,
