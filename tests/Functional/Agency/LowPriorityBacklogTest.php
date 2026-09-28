@@ -193,48 +193,4 @@ final class LowPriorityBacklogTest extends AgencyApiTestCase
         ], 200);
         self::assertSame(90000, $patched['ticketPrice'] ?? null);
     }
-
-    /**
-     * @param array<string, mixed>|null $body
-     * @param array<string, string> $extraHeaders
-     * @return array<string, mixed>
-     */
-    private function apiWithHeaders(
-        string $method,
-        string $uri,
-        string $token,
-        ?array $body,
-        array $extraHeaders,
-        int $expectedStatus,
-    ): array {
-        $contentType = 'PATCH' === strtoupper($method)
-            ? 'application/merge-patch+json'
-            : 'application/json';
-
-        $server = array_merge([
-            'HTTP_AUTHORIZATION' => 'Bearer '.$token,
-            'CONTENT_TYPE' => $contentType,
-            'HTTP_ACCEPT' => 'application/json',
-        ], $extraHeaders);
-
-        $this->client->request(
-            $method,
-            $uri,
-            server: $server,
-            content: null === $body ? null : json_encode($body, \JSON_THROW_ON_ERROR),
-        );
-
-        $content = $this->client->getResponse()->getContent() ?: '{}';
-        $status = $this->client->getResponse()->getStatusCode();
-        self::assertSame(
-            $expectedStatus,
-            $status,
-            sprintf('%s %s expected %d got %d: %s', $method, $uri, $expectedStatus, $status, $content)
-        );
-
-        $decoded = json_decode($content, true);
-        self::assertIsArray($decoded);
-
-        return $decoded;
-    }
 }
