@@ -134,15 +134,31 @@ abstract class AgencyApiTestCase extends WebTestCase
      */
     protected function api(string $method, string $uri, string $token, ?array $body = null, int $expectedStatus = 200): array
     {
+        return $this->apiWithHeaders($method, $uri, $token, $body, [], $expectedStatus);
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     * @param array<string, string> $extraHeaders
+     * @return array<string, mixed>
+     */
+    protected function apiWithHeaders(
+        string $method,
+        string $uri,
+        string $token,
+        ?array $body,
+        array $extraHeaders,
+        int $expectedStatus = 200,
+    ): array {
         $contentType = 'PATCH' === strtoupper($method)
             ? 'application/merge-patch+json'
             : 'application/json';
 
-        $server = [
+        $server = array_merge([
             'HTTP_AUTHORIZATION' => 'Bearer '.$token,
             'CONTENT_TYPE' => $contentType,
             'HTTP_ACCEPT' => 'application/json',
-        ];
+        ], $extraHeaders);
 
         $this->client->request(
             $method,

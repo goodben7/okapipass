@@ -17,6 +17,7 @@ class IdempotencyRecord implements RessourceInterface
     public const string ID_PREFIX = 'IK';
 
     public const string SCOPE_POS_SALE = 'pos_sale';
+    public const string SCOPE_TICKET_CREATE = 'ticket_create';
 
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
