@@ -41,16 +41,8 @@ class TicketFlexpayCheckPaymentStatusProcessor implements ProcessorInterface
             }
         }
 
+        // Already paid: do NOT re-trigger WhatsApp on every front poll.
         if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
-            $payment = $this->payments->findOneBy(
-                ['ticket' => $ticket, 'status' => Payment::STATUS_PAID],
-                ['createdAt' => 'DESC'],
-            );
-            if ($payment instanceof Payment) {
-                $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
-                $this->em->flush();
-            }
-
             return $ticket;
         }
 

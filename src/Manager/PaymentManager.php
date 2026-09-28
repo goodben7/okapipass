@@ -311,9 +311,7 @@ class PaymentManager
     }
 
     /**
-     * Marks this payment + ticket as paid. Always keeps the current ticket as the success
-     * result (front must not receive a different ticket id). WhatsApp is sent at most once
-     * per phone/route/GoPass window.
+     * Marks this payment + ticket as paid and sends WhatsApp at most once (locked claim).
      */
     public function applySuccessfulPayment(Payment $payment, ?string $whatsappOverridePhone = null): ?Ticket
     {
@@ -322,43 +320,36 @@ class PaymentManager
             return null;
         }
 
-        if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()
-            && Payment::STATUS_PAID === $payment->getStatus()) {
-            // Catch-up: paid on web but WhatsApp was skipped / failed earlier.
-            $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
+        $alreadyPaid = Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()
+            && Payment::STATUS_PAID === $payment->getStatus();
+
+        if (!$alreadyPaid) {
+            $now = new \DateTimeImmutable();
+
+            if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                $payment->setStatus(Payment::STATUS_PAID);
+            }
+            if (null === $payment->getPaidAt()) {
+                $payment->setPaidAt($now);
+            }
+            if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
+                $ticket->setStatus(Ticket::STATUS_VALIDATED);
+            }
+            if (null === $ticket->getValidatedAt()) {
+                $ticket->setValidatedAt($now);
+            }
+            if (null === $ticket->getUniqueReference()) {
+                $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
+            }
+            if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
+            }
+
             $this->em->flush();
-
-            return $ticket;
         }
 
-        $now = new \DateTimeImmutable();
-        $ticketWasPaid = false;
-
-        if (Payment::STATUS_PAID !== $payment->getStatus()) {
-            $payment->setStatus(Payment::STATUS_PAID);
-        }
-        if (null === $payment->getPaidAt()) {
-            $payment->setPaidAt($now);
-        }
-        if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-            $ticket->setStatus(Ticket::STATUS_VALIDATED);
-        }
-        if (null === $ticket->getValidatedAt()) {
-            $ticket->setValidatedAt($now);
-        }
-        if (null === $ticket->getUniqueReference()) {
-            $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-        }
-        if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-        }
-
+        $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
         $this->em->flush();
-
-        if (!$ticketWasPaid) {
-            $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
-            $this->em->flush();
-        }
 
         return $ticket;
     }
@@ -381,20 +372,8 @@ class PaymentManager
             return;
         }
 
-        $webhook = $payment->getProviderWebhook();
-        $webhook = is_array($webhook) ? $webhook : [];
-        $meta = $webhook['_okapi'] ?? null;
-        $meta = is_array($meta) ? $meta : [];
-
-        // Previous anti-dupe wrongly marked notified without sending — allow catch-up.
-        if (($meta['whatsapp_paid_notified'] ?? false) === true
-            && !empty($meta['whatsapp_skipped_duplicate_of'])) {
-            unset($meta['whatsapp_paid_notified'], $meta['whatsapp_skipped_duplicate_of']);
-            $webhook['_okapi'] = $meta;
-            $payment->setProviderWebhook($webhook);
-        }
-
-        if (($meta['whatsapp_paid_notified'] ?? false) === true) {
+        // Claim BEFORE UltraMsg so webhook + parallel check-status cannot all send.
+        if (!$this->claimWhatsappPaidSlot($payment, $ticket)) {
             return;
         }
 
@@ -430,16 +409,6 @@ class PaymentManager
         $lines[] = 'Statut: PAYÉ';
         $lines[] = "\nLien de votre pass : https://okapi-pass-v2.vercel.app/payment/success?ref=" . $ref;
 
-        $request = $this->requestStack->getCurrentRequest();
-        // Si on est en local via LocalTunnel, on peut essayer de forcer l'URL du tunnel
-        $apiBaseUrl = $request ? $request->getSchemeAndHttpHost() : 'https://ninety-lines-sink.loca.lt';
-        
-        // Log pour vérifier l'URL générée
-        $this->logger->info('PaymentManager: Generating PDF URL', [
-            'apiBaseUrl' => $apiBaseUrl,
-            'ticketId' => $ticket->getId()
-        ]);
-
         $notification = new Notification();
         $notification->setTarget($phone);
         $notification->setTargetType(Notification::TARGET_TYPE_WHATSAPP);
@@ -455,9 +424,6 @@ class PaymentManager
 
         try {
             $this->notifications->send($notification);
-            $meta['whatsapp_paid_notified'] = true;
-            $webhook['_okapi'] = $meta;
-            $payment->setProviderWebhook($webhook);
         } catch (\Throwable $e) {
             $this->logger->error('payment.whatsapp_paid_notification.failed', [
                 'paymentId' => $payment->getId(),
@@ -465,6 +431,64 @@ class PaymentManager
                 'exception' => $e::class,
                 'message' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Atomically claims the WhatsApp slot for this ticket (one send only).
+     */
+    private function claimWhatsappPaidSlot(Payment $payment, Ticket $ticket): bool
+    {
+        $ticketKey = (string) ($ticket->getUniqueReference() ?: $ticket->getId() ?: $payment->getId());
+        $lockName = 'okp_wa_'.md5($ticketKey);
+        $conn = $this->em->getConnection();
+        $conn->executeQuery('SELECT GET_LOCK(?, 5)', [$lockName]);
+
+        try {
+            $this->em->refresh($payment);
+            $webhook = $payment->getProviderWebhook();
+            $webhook = \is_array($webhook) ? $webhook : [];
+            $meta = \is_array($webhook['_okapi'] ?? null) ? $webhook['_okapi'] : [];
+
+            // Allow one catch-up only if a previous version falsely claimed without sending.
+            if (($meta['whatsapp_paid_notified'] ?? false) === true
+                && !empty($meta['whatsapp_skipped_duplicate_of'])) {
+                unset($meta['whatsapp_paid_notified'], $meta['whatsapp_skipped_duplicate_of']);
+            }
+
+            if (($meta['whatsapp_paid_notified'] ?? false) === true) {
+                return false;
+            }
+
+            // Also block if another payment for same ticket already claimed.
+            $siblings = $this->paymentRepository->findBy(['ticket' => $ticket]);
+            foreach ($siblings as $sibling) {
+                if ($sibling->getId() === $payment->getId()) {
+                    continue;
+                }
+                $sibWebhook = $sibling->getProviderWebhook();
+                $sibMeta = \is_array($sibWebhook) ? ($sibWebhook['_okapi'] ?? null) : null;
+                if (\is_array($sibMeta) && ($sibMeta['whatsapp_paid_notified'] ?? false) === true
+                    && empty($sibMeta['whatsapp_skipped_duplicate_of'])) {
+                    $meta['whatsapp_paid_notified'] = true;
+                    $meta['whatsapp_deduped_via_payment'] = $sibling->getId();
+                    $webhook['_okapi'] = $meta;
+                    $payment->setProviderWebhook($webhook);
+                    $this->em->flush();
+
+                    return false;
+                }
+            }
+
+            $meta['whatsapp_paid_notified'] = true;
+            $meta['whatsapp_claimed_at'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+            $webhook['_okapi'] = $meta;
+            $payment->setProviderWebhook($webhook);
+            $this->em->flush();
+
+            return true;
+        } finally {
+            $conn->executeQuery('SELECT RELEASE_LOCK(?)', [$lockName]);
         }
     }
 

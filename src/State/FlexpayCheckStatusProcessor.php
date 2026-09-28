@@ -39,13 +39,8 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
             }
         }
 
+        // Already paid: do NOT re-trigger WhatsApp on every front poll.
         if (Payment::STATUS_PAID === $payment->getStatus()) {
-            $ticket = $payment->getTicket();
-            if ($ticket instanceof Ticket) {
-                $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
-                $this->em->flush();
-            }
-
             return $payment;
         }
 
