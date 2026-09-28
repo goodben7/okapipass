@@ -1,5 +1,5 @@
 {#
-  PDF Pass FPT / GoPass (Dompdf) — aligné carte web OkapiFPT.
+  PDF Pass FPT / GoPass (Dompdf) — miroir exact du TicketCard React OkapiFPT.
   Variables : ticket, qrCode, issuedAt, expiresAt,
               passLabel, transportLabel, departureLabel, arrivalLabel.
 #}
@@ -20,17 +20,29 @@
             position: relative;
             width: 450px;
             min-height: 650px;
-            background-color: #1d4ed8;
+            /* Dompdf: solid approx of linear-gradient(135deg, #003D99, #007FFF, #0099E6) */
+            background-color: #007FFF;
             color: #ffffff;
             overflow: hidden;
         }
         .glow {
             position: absolute;
             border-radius: 50%;
-            background-color: rgba(96, 165, 250, 0.22);
         }
-        .glow-tr { top: -70px; right: -60px; width: 200px; height: 200px; }
-        .glow-bl { bottom: -50px; left: -40px; width: 160px; height: 160px; background-color: rgba(37, 99, 235, 0.45); }
+        .glow-tr {
+            top: -64px;
+            right: -64px;
+            width: 192px;
+            height: 192px;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .glow-bl {
+            bottom: -40px;
+            left: -40px;
+            width: 144px;
+            height: 144px;
+            background-color: rgba(247, 214, 24, 0.10);
+        }
 
         .top-border {
             width: 100%;
@@ -47,53 +59,50 @@
             padding: 20px 24px 18px;
         }
 
-        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
         .header-table td { vertical-align: middle; padding: 0; }
         .org-name {
             font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: rgba(191, 219, 254, 0.9);
-            margin: 0 0 4px;
+            letter-spacing: 1.6px;
+            color: rgba(255, 255, 255, 0.50);
+            margin: 0 0 3px;
         }
         .brand {
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: #ffffff;
             margin: 0;
-            line-height: 1.1;
+            line-height: 1.15;
         }
-        .brand-accent { color: #facc15; }
+        .brand-accent { color: #F7D618; }
         .shield {
             width: 36px;
             height: 36px;
-            background-color: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.28);
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.20);
             text-align: center;
             line-height: 36px;
             font-size: 14px;
             color: #ffffff;
-            border-radius: 18px;
         }
 
-        .qr-wrap { width: 100%; text-align: center; margin: 4px 0 0; }
+        .qr-wrap { width: 100%; text-align: center; margin: 0 0 14px; }
         .qr-box {
             background-color: #ffffff;
             padding: 12px;
-            border-radius: 12px;
         }
-        .qr-image { width: 170px; height: 170px; }
+        .qr-image { width: 160px; height: 160px; }
 
-        .ref-wrap { width: 100%; text-align: center; margin: 12px 0 16px; }
+        .ref-wrap { width: 100%; text-align: center; margin: 0 0 18px; }
         .ref-badge {
             display: inline-block;
-            background-color: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.28);
-            padding: 7px 16px;
-            border-radius: 20px;
+            background-color: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            padding: 9px 16px;
         }
         .ref-hash {
-            color: #facc15;
+            color: #F7D618;
             font-size: 13px;
             font-weight: bold;
             vertical-align: middle;
@@ -102,9 +111,10 @@
             color: #ffffff;
             font-size: 15px;
             font-weight: bold;
-            letter-spacing: 2.2px;
+            letter-spacing: 2.5px;
             vertical-align: middle;
-            padding-left: 5px;
+            padding-left: 6px;
+            font-family: DejaVu Sans Mono, monospace;
         }
 
         .info-table {
@@ -114,24 +124,30 @@
         }
         .info-table td {
             width: 50%;
-            padding: 0 8px 12px 0;
+            padding: 0 10px 12px 0;
             vertical-align: top;
         }
-        .info-table td:last-child { padding-right: 0; padding-left: 8px; }
+        .info-table td:last-child { padding-right: 0; padding-left: 10px; }
         .label {
             font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: rgba(191, 219, 254, 0.95);
-            margin: 0 0 3px;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.50);
+            margin: 0 0 4px;
         }
         .value {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #ffffff;
             line-height: 1.25;
         }
-        .value-yellow { color: #facc15; }
+        .value-sm {
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffffff;
+            line-height: 1.25;
+        }
+        .value-yellow { color: #F7D618; }
         .sub-value {
             font-size: 10px;
             color: rgba(255, 255, 255, 0.55);
@@ -140,21 +156,20 @@
         }
 
         .footer {
-            margin-top: 4px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
             padding-top: 12px;
         }
         .footer-table { width: 100%; border-collapse: collapse; }
         .footer-table td { vertical-align: middle; padding: 0; }
         .status-badge {
-            border: 1px solid rgba(74, 222, 128, 0.5);
-            background-color: rgba(34, 197, 94, 0.2);
-            color: #bbf7d0;
+            border: 1px solid rgba(74, 222, 128, 0.30);
+            background-color: rgba(34, 197, 94, 0.20);
+            color: #86efac;
             font-size: 10px;
             font-weight: bold;
-            padding: 5px 11px;
+            padding: 5px 10px;
             white-space: nowrap;
-            border-radius: 12px;
         }
     </style>
 </head>
@@ -164,16 +179,18 @@
 {% set transportLabel = transportLabel|default('Routier') %}
 {% set departure = departureLabel|default(ticket.departure ? ticket.departure.label : '—') %}
 {% set arrival = arrivalLabel|default(ticket.arrival ? ticket.arrival.label : '—') %}
+{% set holderId = ticket.identifier|default('') %}
 
 <div class="card">
     <div class="glow glow-tr"></div>
     <div class="glow glow-bl"></div>
 
+    {# Barre tricolore : #007FFF | #F7D618 | #CE1021 #}
     <table class="top-border" cellpadding="0" cellspacing="0">
         <tr>
-            <td style="width:33.33%; background-color:#facc15;">&nbsp;</td>
-            <td style="width:33.33%; background-color:#ef4444;">&nbsp;</td>
-            <td style="width:33.34%; background-color:#1e40af;">&nbsp;</td>
+            <td style="width:33.33%; background-color:#007FFF;">&nbsp;</td>
+            <td style="width:33.33%; background-color:#F7D618;">&nbsp;</td>
+            <td style="width:33.34%; background-color:#CE1021;">&nbsp;</td>
         </tr>
     </table>
 
@@ -211,23 +228,24 @@
                 <td>
                     <div class="label">Titulaire</div>
                     <div class="value">{{ ticket.displayName|default('N/A') }}</div>
+                    {% if holderId %}
+                        <div class="sub-value">{{ holderId }}</div>
+                    {% endif %}
                 </td>
                 <td>
                     <div class="label">Type</div>
                     <div class="value value-yellow">{{ passLabel }}</div>
-                    {% if transportLabel and transportLabel != passLabel %}
-                        <div class="sub-value">{{ transportLabel }}</div>
-                    {% endif %}
+                    <div class="sub-value">{{ transportLabel }}</div>
                 </td>
             </tr>
             <tr>
                 <td>
                     <div class="label">Départ</div>
-                    <div class="value">{{ departure }}</div>
+                    <div class="value-sm">{{ departure }}</div>
                 </td>
                 <td>
                     <div class="label">Arrivée</div>
-                    <div class="value">{{ arrival }}</div>
+                    <div class="value-sm">{{ arrival }}</div>
                 </td>
             </tr>
         </table>
