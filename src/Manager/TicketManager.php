@@ -44,25 +44,12 @@ class TicketManager
             $conn->executeQuery('SELECT GET_LOCK(?, 8)', [$lockName]);
 
             try {
-                $since = new \DateTimeImmutable(sprintf('-%d minutes', self::REUSE_WINDOW_MINUTES));
-
-                $alreadyPaid = $this->tickets->findRecentPaidForFingerprint(
-                    $phone,
-                    $model->goPass,
-                    $model->departure,
-                    $model->arrival,
-                    $since,
-                );
-                if ($alreadyPaid instanceof Ticket) {
-                    return $alreadyPaid;
-                }
-
                 $existing = $this->tickets->findReusableUnpaid(
                     $phone,
                     $model->goPass,
                     $model->departure,
                     $model->arrival,
-                    $since,
+                    new \DateTimeImmutable(sprintf('-%d minutes', self::REUSE_WINDOW_MINUTES)),
                 );
                 if ($existing instanceof Ticket) {
                     return $existing;

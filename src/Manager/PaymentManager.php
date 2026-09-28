@@ -48,23 +48,9 @@ class PaymentManager
     {
         $ticket = $model->ticket;
         if ($ticket instanceof Ticket) {
-            $since = new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES));
-
-            // Already paid (same ticket or fingerprint) → reuse, no new FlexPay push.
             if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
                 $paid = $this->paymentRepository->findOneBy(
                     ['ticket' => $ticket, 'status' => Payment::STATUS_PAID],
-                    ['createdAt' => 'DESC'],
-                );
-                if ($paid instanceof Payment) {
-                    return $paid;
-                }
-            }
-
-            $paidSibling = $this->ticketRepository->findRecentPaidSibling($ticket, $since);
-            if ($paidSibling instanceof Ticket) {
-                $paid = $this->paymentRepository->findOneBy(
-                    ['ticket' => $paidSibling, 'status' => Payment::STATUS_PAID],
                     ['createdAt' => 'DESC'],
                 );
                 if ($paid instanceof Payment) {
@@ -93,9 +79,18 @@ class PaymentManager
             $paidBy = $this->queries->ask(new GetUserDetails($userId));
         }
 
+        $reference = trim((string) $model->reference);
+        if ('' === $reference) {
+            $reference = 'OKP-'.bin2hex(random_bytes(8));
+        }
+        // Avoid UNIQUE(PA_REFERENCE) collisions on front retries with the same ref.
+        if (null !== $this->paymentRepository->findOneBy(['reference' => $reference])) {
+            $reference = substr($reference, 0, 60).'-'.substr(bin2hex(random_bytes(3)), 0, 6);
+        }
+
         $payment = new Payment();
 
-        $payment->setReference($model->reference);
+        $payment->setReference($reference);
         $payment->setTicket($model->ticket);
         $payment->setAmount($model->amount);
         $payment->setCurrency($model->currency);
@@ -316,9 +311,9 @@ class PaymentManager
     }
 
     /**
-     * Marks payment + ticket as paid (at most one WhatsApp per fingerprint).
-     * Returns the effective paid ticket (winner). On duplicate checkout, orphans are
-     * cancelled and the already-paid sibling ticket is returned so the front shows success.
+     * Marks this payment + ticket as paid. Always keeps the current ticket as the success
+     * result (front must not receive a different ticket id). WhatsApp is sent at most once
+     * per phone/route/GoPass window.
      */
     public function applySuccessfulPayment(Payment $payment, ?string $whatsappOverridePhone = null): ?Ticket
     {
@@ -332,102 +327,36 @@ class PaymentManager
             return $ticket;
         }
 
-        $lockName = null;
-        $conn = $this->em->getConnection();
-        $phoneDigits = preg_replace('/\D+/', '', (string) $ticket->getPhone()) ?? '';
-        $last9 = strlen($phoneDigits) >= 9 ? substr($phoneDigits, -9) : $phoneDigits;
-        if ('' !== $last9 && null !== $ticket->getGoPass() && null !== $ticket->getDeparture() && null !== $ticket->getArrival()) {
-            $lockName = 'okp_pay_'.md5(implode('|', [
-                $last9,
-                (string) $ticket->getGoPass()->getId(),
-                (string) $ticket->getDeparture()->getId(),
-                (string) $ticket->getArrival()->getId(),
-            ]));
-            $conn->executeQuery('SELECT GET_LOCK(?, 8)', [$lockName]);
+        $now = new \DateTimeImmutable();
+        $ticketWasPaid = Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
+
+        if (Payment::STATUS_PAID !== $payment->getStatus()) {
+            $payment->setStatus(Payment::STATUS_PAID);
+        }
+        if (null === $payment->getPaidAt()) {
+            $payment->setPaidAt($now);
+        }
+        if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
+            $ticket->setStatus(Ticket::STATUS_VALIDATED);
+        }
+        if (null === $ticket->getValidatedAt()) {
+            $ticket->setValidatedAt($now);
+        }
+        if (null === $ticket->getUniqueReference()) {
+            $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
+        }
+        if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
         }
 
-        try {
-            $this->em->refresh($ticket);
-            if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
-                if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                    $payment->setStatus(Payment::STATUS_PAID);
-                    $payment->setPaidAt($payment->getPaidAt() ?? new \DateTimeImmutable());
-                    $this->em->flush();
-                }
+        $this->em->flush();
 
-                return $ticket;
-            }
-
-            $duplicate = $this->ticketRepository->findRecentPaidSibling(
-                $ticket,
-                new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES)),
-            );
-            if ($duplicate instanceof Ticket) {
-                if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                    // Keep PAID so front polling this payment id still sees success,
-                    // but point consumers to the winner ticket via webhook meta.
-                    $payment->setStatus(Payment::STATUS_PAID);
-                    $payment->setPaidAt($payment->getPaidAt() ?? new \DateTimeImmutable());
-                }
-                $webhook = $payment->getProviderWebhook();
-                $webhook = \is_array($webhook) ? $webhook : [];
-                $meta = \is_array($webhook['_okapi'] ?? null) ? $webhook['_okapi'] : [];
-                $meta['duplicate_of_ticket_id'] = $duplicate->getId();
-                $meta['duplicate_of_reference'] = $duplicate->getUniqueReference();
-                $meta['whatsapp_paid_notified'] = true; // never notify again for orphan
-                $webhook['_okapi'] = $meta;
-                $payment->setProviderWebhook($webhook);
-
-                if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                    $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_CANCELLED);
-                    $ticket->setStatus(Ticket::STATUS_CANCELLED);
-                }
-                $this->logger->warning('payment.duplicate_fingerprint_resolved_to_winner', [
-                    'paymentId' => $payment->getId(),
-                    'orphanTicketId' => $ticket->getId(),
-                    'winnerTicketId' => $duplicate->getId(),
-                    'winnerRef' => $duplicate->getUniqueReference(),
-                ]);
-                $this->em->flush();
-
-                return $duplicate;
-            }
-
-            $now = new \DateTimeImmutable();
-            $ticketWasPaid = Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
-
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_PAID);
-            }
-            if (null === $payment->getPaidAt()) {
-                $payment->setPaidAt($now);
-            }
-            if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-                $ticket->setStatus(Ticket::STATUS_VALIDATED);
-            }
-            if (null === $ticket->getValidatedAt()) {
-                $ticket->setValidatedAt($now);
-            }
-            if (null === $ticket->getUniqueReference()) {
-                $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-            }
-            if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-            }
-
+        if (!$ticketWasPaid) {
+            $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
             $this->em->flush();
-
-            if (!$ticketWasPaid) {
-                $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
-                $this->em->flush();
-            }
-
-            return $ticket;
-        } finally {
-            if (null !== $lockName) {
-                $conn->executeQuery('SELECT RELEASE_LOCK(?)', [$lockName]);
-            }
         }
+
+        return $ticket;
     }
 
     public function findPaidPaymentForTicket(Ticket $ticket): ?Payment
@@ -453,6 +382,26 @@ class PaymentManager
         $meta = $webhook['_okapi'] ?? null;
         $meta = is_array($meta) ? $meta : [];
         if (($meta['whatsapp_paid_notified'] ?? false) === true) {
+            return;
+        }
+
+        // Already notified for same phone/route/GoPass recently → skip extra WhatsApp.
+        $siblingPaid = $this->ticketRepository->findRecentPaidSibling(
+            $ticket,
+            new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES)),
+        );
+        if ($siblingPaid instanceof Ticket) {
+            $meta['whatsapp_paid_notified'] = true;
+            $meta['whatsapp_skipped_duplicate_of'] = $siblingPaid->getId();
+            $webhook['_okapi'] = $meta;
+            $payment->setProviderWebhook($webhook);
+            $this->cancelSiblingUnpaidTickets($ticket);
+            $this->logger->info('payment.whatsapp_paid_skipped_duplicate', [
+                'paymentId' => $payment->getId(),
+                'ticketId' => $ticket->getId(),
+                'siblingTicketId' => $siblingPaid->getId(),
+            ]);
+
             return;
         }
 
