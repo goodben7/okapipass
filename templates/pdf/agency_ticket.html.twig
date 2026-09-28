@@ -1,7 +1,7 @@
 {#
   PDF billet agence (Dompdf) — aligné aperçu front okapi-pass-v2.
   Variables : ticket, offer, agency, qrCode, issuedAt, total,
-              + originLabel / destinationLabel / companyName (AgencyTicketPdfGenerator).
+              originLabel, destinationLabel, companyName (AgencyTicketPdfGenerator).
 #}
 <!DOCTYPE html>
 <html>
@@ -9,136 +9,145 @@
     <meta charset="UTF-8">
     <style>
         @page { margin: 0; }
+        * { box-sizing: border-box; }
         body {
-            font-family: Helvetica, Arial, sans-serif;
+            font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 0;
             background-color: #ffffff;
+            color: #0f172a;
         }
         .container {
             width: 450px;
-            height: 680px;
+            min-height: 650px;
             background-color: #ffffff;
-            position: relative;
-            color: #0f172a;
             border: 1px solid #e2e8f0;
         }
-        .top-border { width: 100%; height: 6px; }
-        .border-item { float: left; height: 6px; width: 33.33%; }
-        .content { padding: 26px 30px 30px; }
+        .top-border {
+            width: 100%;
+            height: 6px;
+            line-height: 0;
+            font-size: 0;
+        }
+        .top-border td { height: 6px; padding: 0; margin: 0; border: 0; }
+        .content { padding: 24px 28px 20px; }
 
         .agency-name {
-            font-size: 26px;
+            font-size: 24px;
             font-weight: bold;
             color: #0f172a;
-            line-height: 1.15;
-            margin: 0 0 14px;
+            line-height: 1.2;
+            margin: 0 0 12px;
         }
         .ref-label {
             font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #94a3b8;
-            margin-bottom: 4px;
+            margin: 0 0 3px;
         }
         .ref-value {
             font-size: 20px;
             font-weight: bold;
             color: #2563eb;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-            word-wrap: break-word;
+            letter-spacing: 0.4px;
+            margin: 0 0 3px;
         }
         .subtitle {
             font-size: 11px;
             color: #94a3b8;
-            margin-bottom: 12px;
+            margin: 0 0 14px;
         }
 
-        .qr-section { text-align: center; margin-top: 8px; }
+        .qr-wrap {
+            width: 100%;
+            text-align: center;
+            margin: 6px 0 0;
+        }
         .qr-box {
-            background-color: #ffffff;
             border: 1px solid #e2e8f0;
-            padding: 18px;
-            border-radius: 18px;
-            display: inline-block;
+            padding: 14px;
+            background: #ffffff;
         }
-        .qr-image { width: 180px; height: 180px; }
+        .qr-image { width: 170px; height: 170px; }
 
-        .ref-container { text-align: center; margin-top: 16px; }
+        .badge-wrap {
+            width: 100%;
+            text-align: center;
+            margin: 14px 0 0;
+        }
         .ref-badge {
+            display: inline-block;
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
-            padding: 8px 22px;
-            border-radius: 15px;
-            display: inline-block;
+            padding: 7px 20px;
         }
         .ref-badge .mini-label {
             font-size: 9px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #94a3b8;
-            margin-bottom: 2px;
+            margin: 0 0 2px;
         }
         .ref-badge .mini-value {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: bold;
             color: #2563eb;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
         }
 
         .info-table {
             width: 100%;
-            margin-top: 22px;
+            margin-top: 20px;
             border-collapse: collapse;
         }
         .info-table td {
             width: 50%;
-            padding-bottom: 14px;
+            padding: 0 8px 13px 0;
             vertical-align: top;
         }
+        .info-table td:last-child { padding-right: 0; padding-left: 8px; }
         .label {
             font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #94a3b8;
-            margin-bottom: 4px;
+            margin: 0 0 3px;
         }
         .value {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
             color: #0f172a;
+            line-height: 1.25;
         }
         .value-accent { color: #f59e0b; }
         .sub-value {
             font-size: 10px;
             color: #94a3b8;
             margin-top: 2px;
+            line-height: 1.3;
         }
 
         .footer {
-            position: absolute;
-            bottom: 22px;
-            left: 30px;
-            right: 30px;
+            margin-top: 8px;
             border-top: 1px solid #e2e8f0;
             padding-top: 12px;
         }
+        .footer-table { width: 100%; border-collapse: collapse; }
+        .footer-table td { vertical-align: middle; padding: 0; }
+        .footer-note {
+            font-size: 10px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
         .status-badge {
-            float: right;
             border: 1px solid #10b981;
-            padding: 5px 12px;
-            border-radius: 15px;
+            padding: 4px 11px;
             color: #059669;
             font-size: 11px;
             font-weight: bold;
             background-color: #ecfdf5;
-        }
-        .footer-note {
-            font-size: 10px;
-            color: #94a3b8;
-            width: 65%;
-            line-height: 1.4;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -151,15 +160,33 @@
 {% elseif status == 'BOARDED' %}
     {% set statusLabel = 'Embarqué' %}
 {% endif %}
-{% set origin = originLabel|default(offer.origin|default('—')) %}
-{% set destination = destinationLabel|default(offer.destination|default('—')) %}
+{% set origin = originLabel|default(offer ? offer.origin : null)|default('—') %}
+{% set destination = destinationLabel|default(offer ? offer.destination : null)|default('—') %}
+{% set ticketPrice = ticket.ticketPrice|default(0) %}
+{% set passPrice = ticket.passPrice|default(0) %}
+{% set months = {
+    1: 'janv.', 2: 'févr.', 3: 'mars', 4: 'avr.', 5: 'mai', 6: 'juin',
+    7: 'juil.', 8: 'août', 9: 'sept.', 10: 'oct.', 11: 'nov.', 12: 'déc.'
+} %}
+{% if ticket.travelDate %}
+    {% set travelDateLabel = ticket.travelDate|date('j') ~ ' ' ~ months[ticket.travelDate|date('n')] ~ ' ' ~ ticket.travelDate|date('Y') %}
+{% else %}
+    {% set travelDateLabel = '—' %}
+{% endif %}
+{% if issuedAt %}
+    {% set issuedLabel = issuedAt|date('j') ~ ' ' ~ months[issuedAt|date('n')] ~ ' ' ~ issuedAt|date('Y') %}
+{% else %}
+    {% set issuedLabel = '—' %}
+{% endif %}
 
 <div class="container">
-    <div class="top-border">
-        <div class="border-item" style="background-color: #2563eb;"></div>
-        <div class="border-item" style="background-color: #fbbf24;"></div>
-        <div class="border-item" style="background-color: #ef4444;"></div>
-    </div>
+    <table class="top-border" cellpadding="0" cellspacing="0">
+        <tr>
+            <td style="width:33.33%; background-color:#2563eb;">&nbsp;</td>
+            <td style="width:33.33%; background-color:#fbbf24;">&nbsp;</td>
+            <td style="width:33.34%; background-color:#ef4444;">&nbsp;</td>
+        </tr>
+    </table>
 
     <div class="content">
         <div class="agency-name">{{ agency.name|default(companyName|default('Agence partenaire')) }}</div>
@@ -168,20 +195,24 @@
         <div class="ref-value">{{ ref }}</div>
         <div class="subtitle">Billet de voyage</div>
 
-        <div class="qr-section">
-            <div class="qr-box">
-                <img src="{{ qrCode }}" class="qr-image" alt="QR {{ ref }}">
-            </div>
+        <div class="qr-wrap">
+            <table align="center" cellpadding="0" cellspacing="0" class="qr-box">
+                <tr>
+                    <td align="center">
+                        <img src="{{ qrCode }}" class="qr-image" alt="QR {{ ref }}">
+                    </td>
+                </tr>
+            </table>
         </div>
 
-        <div class="ref-container">
+        <div class="badge-wrap">
             <div class="ref-badge">
                 <div class="mini-label">Numéro de billet</div>
                 <div class="mini-value">{{ ref }}</div>
             </div>
         </div>
 
-        <table class="info-table">
+        <table class="info-table" cellpadding="0" cellspacing="0">
             <tr>
                 <td>
                     <div class="label">Passager</div>
@@ -193,9 +224,7 @@
                 <td>
                     <div class="label">Siège</div>
                     <div class="value value-accent">{{ ticket.seatNumber|default('—') }}</div>
-                    {% if offer and offer.label %}
-                        <div class="sub-value">{{ offer.label }}</div>
-                    {% endif %}
+                    <div class="sub-value">{{ origin }} &#8594; {{ destination }}</div>
                 </td>
             </tr>
             <tr>
@@ -211,39 +240,37 @@
             <tr>
                 <td>
                     <div class="label">Date voyage</div>
-                    <div class="value">
-                        {% if ticket.travelDate %}
-                            {{ ticket.travelDate|date('d/m/Y') }}
-                        {% else %}
-                            —
-                        {% endif %}
-                    </div>
+                    <div class="value">{{ travelDateLabel }}</div>
                 </td>
                 <td>
                     <div class="label">Heure départ</div>
-                    <div class="value">{{ offer.departureTime|default('—') }}</div>
+                    <div class="value">{{ offer ? (offer.departureTime|default('—')) : '—' }}</div>
                 </td>
             </tr>
             <tr>
                 <td>
                     <div class="label">Montant</div>
                     <div class="value">{{ total|number_format(0, '.', ' ') }} {{ ticket.currency|default('CDF') }}</div>
+                    <div class="sub-value">Billet {{ ticketPrice|number_format(0, '.', ' ') }} {{ ticket.currency|default('CDF') }} &#183; FPT {{ passPrice|number_format(0, '.', ' ') }} {{ ticket.currency|default('CDF') }}</div>
                 </td>
                 <td>
                     <div class="label">Émis le</div>
-                    <div class="value">{{ issuedAt|date('d/m/Y') }}</div>
+                    <div class="value">{{ issuedLabel }}</div>
                 </td>
             </tr>
         </table>
 
         <div class="footer">
-            <div class="status-badge">
-                <span style="font-size: 14px;">●</span> {{ statusLabel }}
-            </div>
-            <div class="footer-note">
-                Présentez ce billet à l’embarquement.
-                {% if agency and agency.phone %} · {{ agency.phone }}{% endif %}
-            </div>
+            <table class="footer-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td class="footer-note">
+                        Présentez ce billet à l'embarquement.
+                    </td>
+                    <td align="right" style="width: 110px;">
+                        <span class="status-badge">&#9679; {{ statusLabel }}</span>
+                    </td>
+                </tr>
+            </table>
         </div>
     </div>
 </div>
