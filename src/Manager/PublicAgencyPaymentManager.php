@@ -21,7 +21,6 @@ use App\Repository\AgencyBookingGroupRepository;
 use App\Repository\AgencyBookingRepository;
 use App\Repository\AgencyPaymentRepository;
 use App\Service\PublicAgency\PublicAgencyPaymentNotifier;
-use App\Service\Traveler\TravelerNotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -46,7 +45,6 @@ final class PublicAgencyPaymentManager
         private LoggerInterface $logger,
         private AccountingAgencyManager $accounting,
         private LoyaltyPointsManager $loyaltyPoints,
-        private TravelerNotificationService $travelerNotifications,
         private \App\Service\Agency\AgencyWebhookDispatcher $webhooks,
     ) {
     }
@@ -407,7 +405,7 @@ final class PublicAgencyPaymentManager
         $payment->setStatus(AgencyPayment::STATUS_PAID);
         $payment->setPaidAt($now);
 
-        $ticket = $this->ticketIssuance->issueFromBooking($booking, sendSms: true);
+        $ticket = $this->ticketIssuance->issueFromBooking($booking, sendSms: false);
         $payment->setTicket($ticket);
         $this->em->flush();
 
@@ -444,7 +442,7 @@ final class PublicAgencyPaymentManager
         $payment->setStatus(AgencyPayment::STATUS_PAID);
         $payment->setPaidAt($now);
 
-        $ticket = $this->ticketIssuance->issueFromGroup($group, sendSms: true);
+        $ticket = $this->ticketIssuance->issueFromGroup($group, sendSms: false);
         $payment->setTicket($ticket);
         $this->em->flush();
 
@@ -768,7 +766,6 @@ final class PublicAgencyPaymentManager
             $ticket = $this->fulfillSuccessfulGroupPayment($payment);
             if (!$hadGroupTickets) {
                 $this->notifier->notifyPaid($payment, $ticket);
-                $this->notifyPaymentPaidSms($ticket);
             }
 
             $this->accounting->recordFromAgencyPayment($payment);
@@ -781,7 +778,6 @@ final class PublicAgencyPaymentManager
         $ticket = $this->fulfillSuccessfulPayment($payment);
         if (!$hadTicket) {
             $this->notifier->notifyPaid($payment, $ticket);
-            $this->notifyPaymentPaidSms($ticket);
         }
 
         $this->accounting->recordFromAgencyPayment($payment);
@@ -836,27 +832,5 @@ final class PublicAgencyPaymentManager
         }
     }
 
-    private function notifyPaymentPaidSms(AgencyTicket $ticket): void
-    {
-        $phone = trim((string) $ticket->getPassengerPhone());
-        if ('' === $phone) {
-            return;
-        }
-
-        $reference = (string) ($ticket->getReference() ?? $ticket->getId());
-        if ('' === $reference) {
-            return;
-        }
-
-        try {
-            $this->travelerNotifications->notifyPaymentPaid($phone, $reference);
-        } catch (\Throwable $e) {
-            $this->logger->warning('traveler.sms.payment_paid.failed', [
-                'ticketId' => $ticket->getId(),
-                'phone' => $phone,
-                'exception' => $e::class,
-                'message' => $e->getMessage(),
-            ]);
-        }
-    }
 }
+
