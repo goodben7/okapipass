@@ -11,16 +11,16 @@ use App\Enum\NotificationType;
 use App\Repository\CheckpointRepository;
 use App\Service\NotificationService;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class PublicAgencyPaymentNotifier
 {
-    private const string API_BASE = 'https://api.okapipass.pteron.pro';
-    private const string FRONT_BASE = 'https://okapi-pass-v2.vercel.app';
-
     public function __construct(
         private NotificationService $notifications,
         private CheckpointRepository $checkpoints,
         private LoggerInterface $logger,
+        #[Autowire('%env(DEFAULT_URI)%')]
+        private string $apiBaseUrl,
     ) {
     }
 
@@ -53,16 +53,16 @@ final class PublicAgencyPaymentNotifier
             'Statut: PAYÉ',
         ];
 
-        if ('' !== $token) {
-            $lines[] = "\nVoir le billet: ".self::FRONT_BASE.'/agency/booking/success?token='.$token;
-        }
-
-        $pdfPath = '' !== $token
-            ? ($ticket->isGroupTicket()
+        $base = rtrim($this->apiBaseUrl, '/');
+        $pdfUrl = '' !== $token
+            ? $base.($ticket->isGroupTicket()
                 ? '/api/public/agency/booking-groups/'.$token.'/ticket/pdf'
                 : '/api/public/agency/bookings/'.$token.'/ticket/pdf')
             : '';
-        $pdfUrl = '' !== $pdfPath ? self::API_BASE.$pdfPath : '';
+
+        if ('' !== $pdfUrl) {
+            $lines[] = "\nTélécharger le billet (PDF): ".$pdfUrl;
+        }
 
         $notification = new Notification();
         $notification->setTarget($phone);
@@ -74,9 +74,6 @@ final class PublicAgencyPaymentNotifier
         $notification->setTemplateContext([
             'reference' => $ref,
             'pdf_url' => $pdfUrl,
-            'action_url' => '' !== $token
-                ? self::FRONT_BASE.'/agency/booking/success?token='.$token
-                : '',
         ]);
 
         try {

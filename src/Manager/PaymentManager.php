@@ -20,6 +20,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class PaymentManager
 {
@@ -34,6 +35,8 @@ class PaymentManager
         private PaymentGatewayInterface $gateway,
         private NotificationService $notifications,
         private LoggerInterface $logger,
+        #[Autowire('%env(DEFAULT_URI)%')]
+        private string $apiBaseUrl,
     ) {
     }
 
@@ -363,7 +366,7 @@ class PaymentManager
         $notification->setTemplateContext([
             'reference' => $ref,
             'action_url' => "https://okapi-pass-v2.vercel.app/payment/success?ref=" . $ref,
-            'pdf_url' => 'https://api.okapipass.pteron.pro' . "/api/tickets/" . $ticket->getId() . "/download-pdf"
+            'pdf_url' => rtrim($this->apiBaseUrl, '/').'/api/tickets/'.$ticket->getId().'/download-pdf',
         ]);
 
         try {
