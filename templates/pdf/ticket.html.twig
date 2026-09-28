@@ -1,214 +1,234 @@
+{#
+  PDF Pass FPT / GoPass (Dompdf) — aligné TicketCard front (MBIYO Lualaba Mobilité).
+  Variables : ticket, qrCode, issuedAt, expiresAt,
+              passLabel, transportLabel, departureLabel, arrivalLabel (TicketPdfGenerator).
+#}
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <style>
-        @page {
-            margin: 0;
-        }
+        @page { margin: 0; }
+        * { box-sizing: border-box; }
         body {
-            font-family: Helvetica, Arial, sans-serif;
+            font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #2563eb; /* Fallback color */
+            background: #ffffff;
         }
-        .container {
+        .card {
             width: 450px;
-            height: 650px;
-            background-color: #2563eb;
-            position: relative;
+            min-height: 640px;
+            background-color: #0B3D2E;
             color: #ffffff;
+            border: 1px solid #06261C;
         }
-        
-        /* Dompdf ne supporte pas bien les dégradés complexes, on utilise une couleur solide ou une image de fond si nécessaire */
-        /* Ici on va rester sur le bleu officiel pour assurer la lisibilité */
-
         .top-border {
             width: 100%;
-            height: 6px;
+            height: 4px;
+            line-height: 0;
+            font-size: 0;
         }
-        .border-item {
-            float: left;
-            height: 6px;
-            width: 33.33%;
-        }
+        .top-border td { height: 4px; padding: 0; margin: 0; border: 0; }
+        .content { padding: 22px 26px 20px; }
 
-        .content {
-            padding: 30px;
-        }
-
-        .header {
-            margin-bottom: 20px;
-        }
+        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+        .header-table td { vertical-align: middle; padding: 0; }
         .org-name {
-            font-size: 10px;
+            font-size: 9px;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 5px;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.50);
+            margin: 0 0 3px;
         }
         .brand {
-            font-size: 26px;
+            font-size: 18px;
             font-weight: bold;
             color: #ffffff;
+            margin: 0;
+            line-height: 1.2;
         }
-        .brand-yellow {
-            color: #fbbf24;
+        .shield {
+            width: 34px;
+            height: 34px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            text-align: center;
+            line-height: 34px;
+            font-size: 14px;
+            color: #ffffff;
         }
 
-        /* QR Code */
-        .qr-section {
-            text-align: center;
-            margin-top: 10px;
-        }
+        .qr-wrap { width: 100%; text-align: center; margin: 4px 0 0; }
         .qr-box {
             background-color: #ffffff;
-            padding: 20px;
-            border-radius: 25px;
-            display: inline-block;
+            padding: 12px;
         }
-        .qr-image {
-            width: 180px;
-            height: 180px;
-        }
+        .qr-image { width: 160px; height: 160px; }
 
-        /* Reference */
-        .ref-container {
-            text-align: center;
-            margin-top: 20px;
-        }
+        .ref-wrap { width: 100%; text-align: center; margin: 14px 0 18px; }
         .ref-badge {
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 10px 25px;
-            border-radius: 15px;
-            color: #fbbf24;
-            font-size: 20px;
-            font-weight: bold;
             display: inline-block;
+            background-color: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            padding: 8px 16px;
+        }
+        .ref-hash {
+            color: #F7D618;
+            font-size: 14px;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        .ref-value {
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            vertical-align: middle;
+            padding-left: 6px;
         }
 
-        /* Info Grid avec Table pour Dompdf */
         .info-table {
             width: 100%;
-            margin-top: 30px;
             border-collapse: collapse;
+            margin-bottom: 6px;
         }
         .info-table td {
             width: 50%;
-            padding-bottom: 20px;
+            padding: 0 10px 12px 0;
             vertical-align: top;
         }
+        .info-table td:last-child { padding-right: 0; padding-left: 10px; }
         .label {
-            font-size: 10px;
+            font-size: 9px;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 5px;
+            letter-spacing: 1.2px;
+            color: rgba(255, 255, 255, 0.50);
+            margin: 0 0 3px;
         }
         .value {
-            font-size: 16px;
+            font-size: 13px;
             font-weight: bold;
             color: #ffffff;
+            line-height: 1.25;
         }
-        .value-yellow {
-            color: #fbbf24;
-        }
+        .value-yellow { color: #F7D618; }
         .sub-value {
             font-size: 10px;
-            color: rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.55);
+            margin-top: 2px;
+            line-height: 1.3;
         }
 
-        /* Footer */
         .footer {
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            right: 30px;
+            margin-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            padding-top: 12px;
         }
+        .footer-table { width: 100%; border-collapse: collapse; }
+        .footer-table td { vertical-align: middle; padding: 0; }
         .status-badge {
-            float: right;
-            border: 1px solid #10b981;
-            padding: 5px 12px;
-            border-radius: 15px;
-            color: #10b981;
-            font-size: 11px;
+            border: 1px solid rgba(74, 222, 128, 0.35);
+            background-color: rgba(34, 197, 94, 0.18);
+            color: #86efac;
+            font-size: 10px;
             font-weight: bold;
-            background-color: rgba(16, 185, 129, 0.1);
-        }
-        .date-table {
-            width: 70%;
-            border-collapse: collapse;
+            padding: 5px 10px;
+            white-space: nowrap;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="top-border">
-            <div class="border-item" style="background-color: #2563eb;"></div>
-            <div class="border-item" style="background-color: #fbbf24;"></div>
-            <div class="border-item" style="background-color: #ef4444;"></div>
-        </div>
+{% set ref = (ticket.uniqueReference|default(ticket.id))|upper %}
+{% set passLabel = passLabel|default(ticket.goPass ? ticket.goPass.label : 'Routier') %}
+{% set transportLabel = transportLabel|default('Routier') %}
+{% set departure = departureLabel|default(ticket.departure ? ticket.departure.label : '—') %}
+{% set arrival = arrivalLabel|default(ticket.arrival ? ticket.arrival.label : '—') %}
+{% set holderId = ticket.identifier|default(ticket.phone|default('')) %}
 
-        <div class="content">
-            <div class="header">
-                <div class="org-name">Office National du Tourisme</div>
-                <div class="brand">Okapi<span class="brand-yellow">Pass</span></div>
-            </div>
+<div class="card">
+    <table class="top-border" cellpadding="0" cellspacing="0">
+        <tr>
+            <td style="width:33.33%; background-color:#0085C7;">&nbsp;</td>
+            <td style="width:33.33%; background-color:#F7D618;">&nbsp;</td>
+            <td style="width:33.34%; background-color:#CE1021;">&nbsp;</td>
+        </tr>
+    </table>
 
-            <div class="qr-section">
-                <div class="qr-box">
-                    <img src="{{ qrCode }}" class="qr-image">
-                </div>
-            </div>
+    <div class="content">
+        <table class="header-table" cellpadding="0" cellspacing="0">
+            <tr>
+                <td>
+                    <div class="org-name">Office National du Tourisme</div>
+                    <div class="brand">MBIYO Lualaba Mobilité</div>
+                </td>
+                <td align="right" style="width: 42px;">
+                    <div class="shield">&#10003;</div>
+                </td>
+            </tr>
+        </table>
 
-            <div class="ref-container">
-                <div class="ref-badge">
-                    # {{ ticket.uniqueReference|default(ticket.id)|upper }}
-                </div>
-            </div>
-
-            <table class="info-table">
+        <div class="qr-wrap">
+            <table align="center" cellpadding="0" cellspacing="0" class="qr-box">
                 <tr>
-                    <td>
-                        <div class="label">Titulaire</div>
-                        <div class="value">{{ ticket.displayName|default('N/A') }}</div>
-                    </td>
-                    <td>
-                        <div class="label">Type</div>
-                        <div class="value value-yellow">{{ ticket.goPass.label|default('Routier') }}</div>
-                        <div class="sub-value">{{ ticket.goPass.label|default('Routier') }}</div>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="label">Départ</div>
-                        <div class="value">{{ ticket.departure.label|default('N/A') }}</div>
-                    </td>
-                    <td>
-                        <div class="label">Arrivée</div>
-                        <div class="value">{{ ticket.arrival.label|default('N/A') }}</div>
+                    <td align="center">
+                        <img src="{{ qrCode }}" class="qr-image" alt="QR {{ ref }}">
                     </td>
                 </tr>
             </table>
+        </div>
 
-            <div class="footer">
-                <div class="status-badge">
-                    <span style="font-size: 14px;">●</span> Valide
-                </div>
-                
-                <table class="date-table">
-                    <tr>
-                        <td>
-                            <div class="label">Émis le</div>
-                            <div class="value">{{ issuedAt|date('d/m/Y') }}</div>
-                        </td>
-                        <td>
-                            <div class="label">Expire le</div>
-                            <div class="value">{{ expiresAt|date('d/m/Y') }}</div>
-                        </td>
-                    </tr>
-                </table>
+        <div class="ref-wrap">
+            <div class="ref-badge">
+                <span class="ref-hash">#</span><span class="ref-value">{{ ref }}</span>
             </div>
         </div>
+
+        <table class="info-table" cellpadding="0" cellspacing="0">
+            <tr>
+                <td>
+                    <div class="label">Titulaire</div>
+                    <div class="value">{{ ticket.displayName|default('N/A') }}</div>
+                    {% if holderId %}
+                        <div class="sub-value">{{ holderId }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="label">Type</div>
+                    <div class="value value-yellow">{{ passLabel }}</div>
+                    <div class="sub-value">{{ transportLabel }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <div class="label">Départ</div>
+                    <div class="value">{{ departure }}</div>
+                </td>
+                <td>
+                    <div class="label">Arrivée</div>
+                    <div class="value">{{ arrival }}</div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="footer">
+            <table class="footer-table" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td style="width:34%;">
+                        <div class="label">Émis le</div>
+                        <div class="value" style="font-size:12px;">{{ issuedAt|date('d/m/Y') }}</div>
+                    </td>
+                    <td style="width:34%;">
+                        <div class="label">Expire le</div>
+                        <div class="value" style="font-size:12px;">{{ expiresAt|date('d/m/Y') }}</div>
+                    </td>
+                    <td align="right" style="width:32%;">
+                        <span class="status-badge">&#9679; Valide</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
     </div>
+</div>
 </body>
 </html>
