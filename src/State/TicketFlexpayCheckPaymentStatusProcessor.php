@@ -41,6 +41,19 @@ class TicketFlexpayCheckPaymentStatusProcessor implements ProcessorInterface
             }
         }
 
+        // Already paid → return as-is (or fingerprint winner).
+        if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
+            return $ticket;
+        }
+
+        $paidSibling = $this->tickets->findRecentPaidSibling(
+            $ticket,
+            new \DateTimeImmutable('-120 minutes'),
+        );
+        if ($paidSibling instanceof Ticket) {
+            return $paidSibling;
+        }
+
         $payment = $this->payments->findOneBy(['ticket' => $ticket], ['createdAt' => 'DESC']);
 
         if (!$payment instanceof Payment) {
@@ -65,9 +78,21 @@ class TicketFlexpayCheckPaymentStatusProcessor implements ProcessorInterface
             $response->isSuccess()
             && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)
         ) {
-            $this->paymentManager->applySuccessfulPayment($payment);
-            $this->em->refresh($ticket);
-        } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+            $winner = $this->paymentManager->applySuccessfulPayment($payment);
+
+            return $winner instanceof Ticket ? $winner : $ticket;
+        }
+
+        if (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+            // FlexPay failed on this attempt, but a sibling may already be paid.
+            $paidSibling = $this->tickets->findRecentPaidSibling(
+                $ticket,
+                new \DateTimeImmutable('-120 minutes'),
+            );
+            if ($paidSibling instanceof Ticket) {
+                return $paidSibling;
+            }
+
             if (Payment::STATUS_PAID !== $payment->getStatus()) {
                 $payment->setStatus(Payment::STATUS_FAILED);
             }

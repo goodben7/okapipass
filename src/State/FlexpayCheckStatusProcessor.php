@@ -5,9 +5,11 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\Payment;
+use App\Entity\Ticket;
 use App\Manager\PaymentManager;
 use App\Model\PaymentGatewayInterface;
 use App\Repository\PaymentRepository;
+use App\Repository\TicketRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 class FlexpayCheckStatusProcessor implements ProcessorInterface
@@ -17,6 +19,7 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
         private PaymentGatewayInterface $gateway,
         private EntityManagerInterface $em,
         private PaymentManager $paymentManager,
+        private TicketRepository $tickets,
     ) {
     }
 
@@ -38,6 +41,10 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
             }
         }
 
+        if (Payment::STATUS_PAID === $payment->getStatus()) {
+            return $this->resolveWinnerPayment($payment) ?? $payment;
+        }
+
         $transactionId = $payment->getProviderTransactionId();
 
         if (null === $transactionId || '' === \trim($transactionId)) {
@@ -56,16 +63,30 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
             $response->isSuccess()
             && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)
         ) {
-            $this->paymentManager->applySuccessfulPayment($payment);
-        } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+            $winnerTicket = $this->paymentManager->applySuccessfulPayment($payment);
+            if ($winnerTicket instanceof Ticket) {
+                $winnerPayment = $this->paymentManager->findPaidPaymentForTicket($winnerTicket);
+                if ($winnerPayment instanceof Payment) {
+                    return $winnerPayment;
+                }
+            }
+
+            return $payment;
+        }
+
+        if (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+            $winnerPayment = $this->resolveWinnerPayment($payment);
+            if ($winnerPayment instanceof Payment) {
+                return $winnerPayment;
+            }
+
             if (Payment::STATUS_PAID !== $payment->getStatus()) {
                 $payment->setStatus(Payment::STATUS_FAILED);
             }
 
             $ticket = $payment->getTicket();
-            if ($ticket instanceof \App\Entity\Ticket
-                && \App\Entity\Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                $ticket->setPaymentStatus(\App\Entity\Ticket::PAYMENT_STATUS_FAILED);
+            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
             }
             $this->em->flush();
         } else {
@@ -73,5 +94,24 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
         }
 
         return $payment;
+    }
+
+    private function resolveWinnerPayment(Payment $payment): ?Payment
+    {
+        $ticket = $payment->getTicket();
+        if (!$ticket instanceof Ticket) {
+            return null;
+        }
+
+        if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
+            return $this->paymentManager->findPaidPaymentForTicket($ticket) ?? $payment;
+        }
+
+        $winner = $this->tickets->findRecentPaidSibling($ticket, new \DateTimeImmutable('-120 minutes'));
+        if (!$winner instanceof Ticket) {
+            return null;
+        }
+
+        return $this->paymentManager->findPaidPaymentForTicket($winner);
     }
 }

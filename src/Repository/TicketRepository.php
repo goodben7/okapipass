@@ -98,29 +98,53 @@ class TicketRepository extends ServiceEntityRepository
         $goPass = $ticket->getGoPass();
         $departure = $ticket->getDeparture();
         $arrival = $ticket->getArrival();
-        $last9 = $this->last9((string) $ticket->getPhone());
-        if ('' === $last9 || null === $goPass || null === $departure || null === $arrival) {
+        if (null === $goPass || null === $departure || null === $arrival) {
             return null;
         }
 
-        /** @var list<Ticket> $rows */
-        $rows = $this->createQueryBuilder('t')
-            ->andWhere('t.id != :id')
+        return $this->findRecentPaidForFingerprint(
+            (string) $ticket->getPhone(),
+            $goPass,
+            $departure,
+            $arrival,
+            $since,
+            $ticket->getId(),
+        );
+    }
+
+    public function findRecentPaidForFingerprint(
+        string $phone,
+        GoPass $goPass,
+        Checkpoint $departure,
+        Checkpoint $arrival,
+        \DateTimeImmutable $since,
+        ?string $excludeTicketId = null,
+    ): ?Ticket {
+        $last9 = $this->last9($phone);
+        if ('' === $last9) {
+            return null;
+        }
+
+        $qb = $this->createQueryBuilder('t')
             ->andWhere('t.goPass = :goPass')
             ->andWhere('t.departure = :departure')
             ->andWhere('t.arrival = :arrival')
             ->andWhere('t.paymentStatus = :paid')
             ->andWhere('t.issuedAt >= :since')
-            ->setParameter('id', $ticket->getId())
             ->setParameter('goPass', $goPass)
             ->setParameter('departure', $departure)
             ->setParameter('arrival', $arrival)
             ->setParameter('paid', Ticket::PAYMENT_STATUS_PAID)
             ->setParameter('since', $since)
             ->orderBy('t.validatedAt', 'DESC')
-            ->setMaxResults(30)
-            ->getQuery()
-            ->getResult();
+            ->setMaxResults(30);
+
+        if (null !== $excludeTicketId && '' !== $excludeTicketId) {
+            $qb->andWhere('t.id != :id')->setParameter('id', $excludeTicketId);
+        }
+
+        /** @var list<Ticket> $rows */
+        $rows = $qb->getQuery()->getResult();
 
         foreach ($rows as $row) {
             if ($this->last9((string) $row->getPhone()) === $last9) {

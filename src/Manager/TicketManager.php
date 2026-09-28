@@ -33,7 +33,6 @@ class TicketManager
         $rawPhone = trim((string) ($model->phone ?? ''));
         $phone = '' !== $rawPhone ? $this->softNormalizePhone($rawPhone) : '';
 
-        $lockName = null;
         $conn = $this->em->getConnection();
         if ('' !== $phone && null !== $model->goPass && null !== $model->departure && null !== $model->arrival) {
             $lockName = 'okp_tkt_'.md5(implode('|', [
@@ -45,12 +44,25 @@ class TicketManager
             $conn->executeQuery('SELECT GET_LOCK(?, 8)', [$lockName]);
 
             try {
+                $since = new \DateTimeImmutable(sprintf('-%d minutes', self::REUSE_WINDOW_MINUTES));
+
+                $alreadyPaid = $this->tickets->findRecentPaidForFingerprint(
+                    $phone,
+                    $model->goPass,
+                    $model->departure,
+                    $model->arrival,
+                    $since,
+                );
+                if ($alreadyPaid instanceof Ticket) {
+                    return $alreadyPaid;
+                }
+
                 $existing = $this->tickets->findReusableUnpaid(
                     $phone,
                     $model->goPass,
                     $model->departure,
                     $model->arrival,
-                    new \DateTimeImmutable(sprintf('-%d minutes', self::REUSE_WINDOW_MINUTES)),
+                    $since,
                 );
                 if ($existing instanceof Ticket) {
                     return $existing;
