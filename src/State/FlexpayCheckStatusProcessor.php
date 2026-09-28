@@ -5,11 +5,9 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\Entity\Payment;
-use App\Entity\Ticket;
 use App\Manager\PaymentManager;
 use App\Model\PaymentGatewayInterface;
 use App\Repository\PaymentRepository;
-use App\Service\TicketUniqueReferenceGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 class FlexpayCheckStatusProcessor implements ProcessorInterface
@@ -18,7 +16,6 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
         private PaymentRepository $payments,
         private PaymentGatewayInterface $gateway,
         private EntityManagerInterface $em,
-        private TicketUniqueReferenceGenerator $referenceGenerator,
         private PaymentManager $paymentManager,
     ) {
     }
@@ -59,51 +56,21 @@ class FlexpayCheckStatusProcessor implements ProcessorInterface
             $response->isSuccess()
             && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)
         ) {
-            $now = new \DateTimeImmutable();
-            $ticket = $payment->getTicket();
-            $ticketWasPaid = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
-
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_PAID);
-            }
-
-            if (null === $payment->getPaidAt()) {
-                $payment->setPaidAt($now);
-            }
-
-            if ($ticket instanceof Ticket) {
-                if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-                    $ticket->setStatus(Ticket::STATUS_VALIDATED);
-                }
-
-                if (null === $ticket->getValidatedAt()) {
-                    $ticket->setValidatedAt($now);
-                }
-
-                if (null === $ticket->getUniqueReference()) {
-                    $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-                }
-
-                if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                    $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-                }
-            }
-
-            if ($ticket instanceof Ticket && !$ticketWasPaid) {
-                $this->paymentManager->notifyWhatsappPaid($payment, $ticket);
-            }
+            $this->paymentManager->applySuccessfulPayment($payment);
         } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
             if (Payment::STATUS_PAID !== $payment->getStatus()) {
                 $payment->setStatus(Payment::STATUS_FAILED);
             }
 
             $ticket = $payment->getTicket();
-            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
+            if ($ticket instanceof \App\Entity\Ticket
+                && \App\Entity\Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(\App\Entity\Ticket::PAYMENT_STATUS_FAILED);
             }
+            $this->em->flush();
+        } else {
+            $this->em->flush();
         }
-
-        $this->em->flush();
 
         return $payment;
     }

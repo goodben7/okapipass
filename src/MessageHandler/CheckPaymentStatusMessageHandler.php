@@ -8,7 +8,6 @@ use App\Manager\PaymentManager;
 use App\Message\CheckPaymentStatusMessage;
 use App\Model\PaymentGatewayInterface;
 use App\Repository\PaymentRepository;
-use App\Service\TicketUniqueReferenceGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -22,7 +21,6 @@ final readonly class CheckPaymentStatusMessageHandler
         private EntityManagerInterface $em,
         private PaymentRepository $payments,
         private PaymentGatewayInterface $gateway,
-        private TicketUniqueReferenceGenerator $referenceGenerator,
         private PaymentManager $paymentManager,
         private MessageBusInterface $bus,
         private LoggerInterface $logger,
@@ -53,7 +51,8 @@ final readonly class CheckPaymentStatusMessageHandler
 
         $transactionId = $payment->getProviderTransactionId();
         if (null === $transactionId || '' === trim($transactionId)) {
-            $this->reschedule($payment->getId(), $attempt, $maxAttempts);
+            $this->reschedule($payment->getId(), $conversationPhone, $attempt, $maxAttempts);
+
             return;
         }
 
@@ -65,83 +64,53 @@ final readonly class CheckPaymentStatusMessageHandler
         $normalizedStatus = is_string($providerStatus) ? strtoupper(trim($providerStatus)) : $providerStatus;
 
         $ticket = $payment->getTicket();
-        $ticketWasPaid = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
 
         if ($response->isSuccess() && in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
-            $now = new \DateTimeImmutable();
+            $this->paymentManager->applySuccessfulPayment($payment, $conversationPhone);
 
-            if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                $payment->setStatus(Payment::STATUS_PAID);
-            }
-
-            if (null === $payment->getPaidAt()) {
-                $payment->setPaidAt($now);
-            }
-
-            if ($ticket instanceof Ticket) {
-                if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-                    $ticket->setStatus(Ticket::STATUS_VALIDATED);
-                }
-
-                if (null === $ticket->getValidatedAt()) {
-                    $ticket->setValidatedAt($now);
-                }
-
-                if (null === $ticket->getUniqueReference()) {
-                    $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-                }
-
-                if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                    $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-                }
-            }
-
-            $this->em->flush();
-
-        if ($ticket instanceof Ticket && !$ticketWasPaid) {
-            $this->paymentManager->notifyWhatsappPaid($payment, $ticket, $conversationPhone);
-            $this->em->flush();
-        }
-
-        return;
-    }
-
-    if (in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
-        $ticketWasFailed = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_FAILED === $ticket->getPaymentStatus();
-
-        if (Payment::STATUS_PAID !== $payment->getStatus()) {
-            $payment->setStatus(Payment::STATUS_FAILED);
-        }
-
-        if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
-        }
-
-        $this->em->flush();
-
-        if ($ticket instanceof Ticket && !$ticketWasFailed) {
-            $this->paymentManager->notifyWhatsappFailed($payment, $ticket, $conversationPhone);
-            $this->em->flush();
-        }
-
-        return;
-    }
-
-        $this->em->flush();
-        $this->reschedule($payment->getId(), $attempt, $maxAttempts, $conversationPhone);
-    }
-
-    private function reschedule(?string $paymentId, int $attempt, int $maxAttempts, string $conversationPhone = ''): void
-    {
-        $paymentId = (string) ($paymentId ?? '');
-        if ($paymentId === '' || $attempt >= $maxAttempts) {
             return;
         }
 
-        $delayMs = min(300000, 20000 * (int) (2 ** max(0, $attempt - 1)));
+        if (in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
+            $ticketWasFailed = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_FAILED === $ticket->getPaymentStatus();
+
+            if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                $payment->setStatus(Payment::STATUS_FAILED);
+            }
+
+            if ($ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_FAILED);
+            }
+
+            $this->em->flush();
+
+            if ($ticket instanceof Ticket && !$ticketWasFailed) {
+                $this->paymentManager->notifyWhatsappFailed($payment, $ticket, $conversationPhone);
+                $this->em->flush();
+            }
+
+            return;
+        }
+
+        $this->em->flush();
+        $this->reschedule($payment->getId(), $conversationPhone, $attempt, $maxAttempts);
+    }
+
+    private function reschedule(string $paymentId, string $conversationPhone, int $attempt, int $maxAttempts): void
+    {
+        if ($attempt >= $maxAttempts) {
+            $this->logger->info('payment.check_status.max_attempts', [
+                'paymentId' => $paymentId,
+                'attempt' => $attempt,
+            ]);
+
+            return;
+        }
+
+        $delayMs = min(60_000, 5_000 * $attempt);
         $this->bus->dispatch(
             new CheckPaymentStatusMessage($paymentId, $conversationPhone, $attempt + 1),
-            [new DelayStamp($delayMs)]
+            [new DelayStamp($delayMs)],
         );
     }
 }

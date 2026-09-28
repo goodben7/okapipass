@@ -251,44 +251,12 @@ class PaymentManager
                 ]);
 
                 if ($check->isSuccess() && \in_array($normalizedStatus, ['SUCCESS', 'PAID', '0', 0], true)) {
-                    $now = new \DateTimeImmutable();
-                    $ticket = $payment->getTicket();
-                    $ticketWasPaid = $ticket instanceof Ticket && Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
-
-                    if (Payment::STATUS_PAID !== $payment->getStatus()) {
-                        $payment->setStatus(Payment::STATUS_PAID);
-                    }
-
-                    if (null === $payment->getPaidAt()) {
-                        $payment->setPaidAt($now);
-                    }
-
-                    if ($ticket instanceof Ticket) {
-                        if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
-                            $ticket->setStatus(Ticket::STATUS_VALIDATED);
-                        }
-
-                        if (null === $ticket->getValidatedAt()) {
-                            $ticket->setValidatedAt($now);
-                        }
-
-                        if (null === $ticket->getUniqueReference()) {
-                            $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
-                        }
-
-                        if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
-                            $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
-                        }
-                    }
-
-                    if ($ticket instanceof Ticket && !$ticketWasPaid) {
-                        $this->notifyWhatsappPaid($payment, $ticket);
-                    }
-
+                    $this->applySuccessfulPayment($payment);
                     $this->logger->info('payment.flexpay.webhook.marked_paid', [
                         'paymentId' => $payment->getId(),
                         'transactionId' => (string) $transactionId,
                         'ticketId' => $payment->getTicket()?->getId(),
+                        'paymentStatus' => $payment->getStatus(),
                     ]);
                 } elseif (\in_array($normalizedStatus, ['FAILED', 'CANCELLED', 'DECLINED', 'ERROR', '4', 4], true)) {
                     if (Payment::STATUS_PAID !== $payment->getStatus()) {
@@ -334,6 +302,106 @@ class PaymentManager
         ]);
 
         return $payment;
+    }
+
+    /**
+     * Marks payment + ticket as paid and sends at most one WhatsApp for the fingerprint.
+     * If another ticket with the same phone/route/GoPass was already paid recently,
+     * this payment is cancelled as a checkout duplicate (no extra WhatsApp).
+     *
+     * @return bool true when this payment became the winning paid ticket
+     */
+    public function applySuccessfulPayment(Payment $payment, ?string $whatsappOverridePhone = null): bool
+    {
+        $ticket = $payment->getTicket();
+        if (!$ticket instanceof Ticket) {
+            return false;
+        }
+
+        if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()
+            && Payment::STATUS_PAID === $payment->getStatus()) {
+            return false;
+        }
+
+        $lockName = null;
+        $conn = $this->em->getConnection();
+        $phoneDigits = preg_replace('/\D+/', '', (string) $ticket->getPhone()) ?? '';
+        $last9 = strlen($phoneDigits) >= 9 ? substr($phoneDigits, -9) : $phoneDigits;
+        if ('' !== $last9 && null !== $ticket->getGoPass() && null !== $ticket->getDeparture() && null !== $ticket->getArrival()) {
+            $lockName = 'okp_pay_'.md5(implode('|', [
+                $last9,
+                (string) $ticket->getGoPass()->getId(),
+                (string) $ticket->getDeparture()->getId(),
+                (string) $ticket->getArrival()->getId(),
+            ]));
+            $conn->executeQuery('SELECT GET_LOCK(?, 8)', [$lockName]);
+        }
+
+        try {
+            // Re-check under lock.
+            $this->em->refresh($ticket);
+            if (Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus()) {
+                return false;
+            }
+
+            $duplicate = $this->ticketRepository->findRecentPaidSibling(
+                $ticket,
+                new \DateTimeImmutable(sprintf('-%d minutes', self::SIBLING_CANCEL_WINDOW_MINUTES)),
+            );
+            if ($duplicate instanceof Ticket) {
+                if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                    $payment->setStatus(Payment::STATUS_CANCELLED);
+                }
+                if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                    $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_CANCELLED);
+                    $ticket->setStatus(Ticket::STATUS_CANCELLED);
+                }
+                $this->logger->warning('payment.duplicate_fingerprint_cancelled', [
+                    'paymentId' => $payment->getId(),
+                    'ticketId' => $ticket->getId(),
+                    'winnerTicketId' => $duplicate->getId(),
+                    'winnerRef' => $duplicate->getUniqueReference(),
+                ]);
+                $this->em->flush();
+
+                return false;
+            }
+
+            $now = new \DateTimeImmutable();
+            $ticketWasPaid = Ticket::PAYMENT_STATUS_PAID === $ticket->getPaymentStatus();
+
+            if (Payment::STATUS_PAID !== $payment->getStatus()) {
+                $payment->setStatus(Payment::STATUS_PAID);
+            }
+            if (null === $payment->getPaidAt()) {
+                $payment->setPaidAt($now);
+            }
+            if (Ticket::STATUS_VALIDATED !== $ticket->getStatus()) {
+                $ticket->setStatus(Ticket::STATUS_VALIDATED);
+            }
+            if (null === $ticket->getValidatedAt()) {
+                $ticket->setValidatedAt($now);
+            }
+            if (null === $ticket->getUniqueReference()) {
+                $ticket->setUniqueReference($this->referenceGenerator->generateFor($ticket));
+            }
+            if (Ticket::PAYMENT_STATUS_PAID !== $ticket->getPaymentStatus()) {
+                $ticket->setPaymentStatus(Ticket::PAYMENT_STATUS_PAID);
+            }
+
+            $this->em->flush();
+
+            if (!$ticketWasPaid) {
+                $this->notifyWhatsappPaid($payment, $ticket, $whatsappOverridePhone);
+                $this->em->flush();
+            }
+
+            return true;
+        } finally {
+            if (null !== $lockName) {
+                $conn->executeQuery('SELECT RELEASE_LOCK(?)', [$lockName]);
+            }
+        }
     }
 
     public function notifyWhatsappPaid(Payment $payment, Ticket $ticket, ?string $overridePhone = null): void
